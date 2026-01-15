@@ -99,7 +99,7 @@ fn test_supported_extensions_only() {
         .filter(|path| {
             !path
                 .extension()
-                .and_then(|e| e.to_str())
+                .and_then(std::ffi::OsStr::to_str)
                 .is_some_and(|e| SUPPORTED_EXTENSIONS.contains(&e))
         })
         .collect();
@@ -146,7 +146,7 @@ fn test_kerml_files_handled() {
     let kerml_count = data
         .collected_paths
         .iter()
-        .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("kerml"))
+        .filter(|p| p.extension().and_then(std::ffi::OsStr::to_str) == Some("kerml"))
         .count();
 
     assert!(

@@ -18,7 +18,7 @@ pub enum LogosToken {
     #[regex(r"[ \t\r\n]+")]
     Whitespace,
 
-    #[regex(r"//[^\n]*", priority = 2, allow_greedy = true)]
+    #[regex(r"//[^\n]*", priority = 2)]
     LineComment,
 
     #[regex(r"/\*([^*]|\*[^/])*\*/")]
