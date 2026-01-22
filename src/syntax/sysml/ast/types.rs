@@ -1,93 +1,303 @@
 use super::enums::{DefinitionKind, DefinitionMember, Element, UsageKind, UsageMember};
+use super::parsers::ExtractedRef;
 use crate::core::Span;
+
+// ============================================================================
+// FEATURE CHAIN TYPES (for proper chain resolution)
+// ============================================================================
+
+/// A part of a feature chain with its own span.
+/// E.g., in `providePower.distributeTorque`, each identifier is a part.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FeatureChainPart {
+    pub name: String,
+    pub span: Option<Span>,
+}
+
+/// A feature chain is a sequence of identifiers separated by dots.
+/// E.g., `providePower.distributeTorque` or `camera.takePicture.focus`
+/// 
+/// Unlike the old approach of detecting chains from adjacent spans,
+/// this struct explicitly captures the chain structure from the parser.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FeatureChain {
+    /// The parts of the chain, in order
+    pub parts: Vec<FeatureChainPart>,
+    /// The span of the entire chain
+    pub span: Option<Span>,
+}
+
+impl FeatureChain {
+    /// Create a new feature chain from parts
+    pub fn new(parts: Vec<FeatureChainPart>, span: Option<Span>) -> Self {
+        Self { parts, span }
+    }
+    
+    /// Check if this is actually a chain (more than one part)
+    pub fn is_chain(&self) -> bool {
+        self.parts.len() > 1
+    }
+    
+    /// Get the first part of the chain
+    pub fn first(&self) -> Option<&FeatureChainPart> {
+        self.parts.first()
+    }
+    
+    /// Get the last part of the chain  
+    pub fn last(&self) -> Option<&FeatureChainPart> {
+        self.parts.last()
+    }
+    
+    /// Get all parts as a dot-separated string (for backwards compat)
+    pub fn as_dotted_string(&self) -> String {
+        self.parts.iter().map(|p| p.name.as_str()).collect::<Vec<_>>().join(".")
+    }
+}
+
+// ============================================================================
+// LEGACY CHAIN CONTEXT (deprecated, use FeatureChain instead)
+// ============================================================================
 
 /// Chain context for feature chain references (e.g., takePicture.focus)
 /// This tracks which part of a chain this reference is, enabling proper resolution.
+/// 
+/// DEPRECATED: Use FeatureChain instead. This is kept for backwards compatibility
+/// during migration.
 pub type ChainContext = Option<(Vec<String>, usize)>;
 
-// Relationship types with span information
+// ============================================================================
+// RELATIONSHIP TYPES
+// ============================================================================
+
+// Relationship types now store ExtractedRef directly to preserve chain spans
 #[derive(Debug, Clone, PartialEq)]
 pub struct SpecializationRel {
-    pub target: String,
-    pub span: Option<Span>,
-    pub chain_context: ChainContext,
+    pub extracted: ExtractedRef,
+}
+
+impl SpecializationRel {
+    pub fn new(extracted: ExtractedRef) -> Self {
+        Self { extracted }
+    }
+    
+    /// Legacy accessor for target name
+    pub fn target(&self) -> String {
+        self.extracted.name()
+    }
+    
+    /// Legacy accessor for span
+    pub fn span(&self) -> Option<Span> {
+        self.extracted.span()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RedefinitionRel {
-    pub target: String,
-    pub span: Option<Span>,
-    pub chain_context: ChainContext,
+    pub extracted: ExtractedRef,
+}
+
+impl RedefinitionRel {
+    pub fn new(extracted: ExtractedRef) -> Self {
+        Self { extracted }
+    }
+    
+    pub fn target(&self) -> String {
+        self.extracted.name()
+    }
+    
+    pub fn span(&self) -> Option<Span> {
+        self.extracted.span()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SubsettingRel {
-    pub target: String,
-    pub span: Option<Span>,
-    pub chain_context: ChainContext,
+    pub extracted: ExtractedRef,
+}
+
+impl SubsettingRel {
+    pub fn new(extracted: ExtractedRef) -> Self {
+        Self { extracted }
+    }
+    
+    pub fn target(&self) -> String {
+        self.extracted.name()
+    }
+    
+    pub fn span(&self) -> Option<Span> {
+        self.extracted.span()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ReferenceRel {
-    pub target: String,
-    pub span: Option<Span>,
-    pub chain_context: ChainContext,
+    pub extracted: ExtractedRef,
+}
+
+impl ReferenceRel {
+    pub fn new(extracted: ExtractedRef) -> Self {
+        Self { extracted }
+    }
+    
+    pub fn target(&self) -> String {
+        self.extracted.name()
+    }
+    
+    pub fn span(&self) -> Option<Span> {
+        self.extracted.span()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CrossRel {
-    pub target: String,
-    pub span: Option<Span>,
-    pub chain_context: ChainContext,
+    pub extracted: ExtractedRef,
+}
+
+impl CrossRel {
+    pub fn new(extracted: ExtractedRef) -> Self {
+        Self { extracted }
+    }
+    
+    pub fn target(&self) -> String {
+        self.extracted.name()
+    }
+    
+    pub fn span(&self) -> Option<Span> {
+        self.extracted.span()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SatisfyRel {
-    pub target: String,
-    pub span: Option<Span>,
-    pub chain_context: ChainContext,
+    pub extracted: ExtractedRef,
+}
+
+impl SatisfyRel {
+    pub fn new(extracted: ExtractedRef) -> Self {
+        Self { extracted }
+    }
+    
+    pub fn target(&self) -> String {
+        self.extracted.name()
+    }
+    
+    pub fn span(&self) -> Option<Span> {
+        self.extracted.span()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct PerformRel {
-    pub target: String,
-    pub span: Option<Span>,
-    pub chain_context: ChainContext,
+    pub extracted: ExtractedRef,
+}
+
+impl PerformRel {
+    pub fn new(extracted: ExtractedRef) -> Self {
+        Self { extracted }
+    }
+    
+    pub fn target(&self) -> String {
+        self.extracted.name()
+    }
+    
+    pub fn span(&self) -> Option<Span> {
+        self.extracted.span()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExhibitRel {
-    pub target: String,
-    pub span: Option<Span>,
-    pub chain_context: ChainContext,
+    pub extracted: ExtractedRef,
+}
+
+impl ExhibitRel {
+    pub fn new(extracted: ExtractedRef) -> Self {
+        Self { extracted }
+    }
+    
+    pub fn target(&self) -> String {
+        self.extracted.name()
+    }
+    
+    pub fn span(&self) -> Option<Span> {
+        self.extracted.span()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct IncludeRel {
-    pub target: String,
-    pub span: Option<Span>,
-    pub chain_context: ChainContext,
+    pub extracted: ExtractedRef,
+}
+
+impl IncludeRel {
+    pub fn new(extracted: ExtractedRef) -> Self {
+        Self { extracted }
+    }
+    
+    pub fn target(&self) -> String {
+        self.extracted.name()
+    }
+    
+    pub fn span(&self) -> Option<Span> {
+        self.extracted.span()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct AssertRel {
-    pub target: String,
-    pub span: Option<Span>,
-    pub chain_context: ChainContext,
+    pub extracted: ExtractedRef,
+}
+
+impl AssertRel {
+    pub fn new(extracted: ExtractedRef) -> Self {
+        Self { extracted }
+    }
+    
+    pub fn target(&self) -> String {
+        self.extracted.name()
+    }
+    
+    pub fn span(&self) -> Option<Span> {
+        self.extracted.span()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct VerifyRel {
-    pub target: String,
-    pub span: Option<Span>,
-    pub chain_context: ChainContext,
+    pub extracted: ExtractedRef,
+}
+
+impl VerifyRel {
+    pub fn new(extracted: ExtractedRef) -> Self {
+        Self { extracted }
+    }
+    
+    pub fn target(&self) -> String {
+        self.extracted.name()
+    }
+    
+    pub fn span(&self) -> Option<Span> {
+        self.extracted.span()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct MetaRel {
-    pub target: String,
-    pub span: Option<Span>,
-    pub chain_context: ChainContext,
+    pub extracted: ExtractedRef,
+}
+
+impl MetaRel {
+    pub fn new(extracted: ExtractedRef) -> Self {
+        Self { extracted }
+    }
+    
+    pub fn target(&self) -> String {
+        self.extracted.name()
+    }
+    
+    pub fn span(&self) -> Option<Span> {
+        self.extracted.span()
+    }
 }
 
 /// Represents an element filter member (e.g., `filter @Safety;`)
@@ -121,6 +331,8 @@ pub struct NamespaceDeclaration {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Package {
     pub name: Option<String>,
+    /// Short name (e.g., "m" from `<m> 'metre'`)
+    pub short_name: Option<String>,
     pub elements: Vec<Element>,
     /// Span of the package name identifier
     pub span: Option<Span>,
@@ -177,63 +389,63 @@ impl Relationships {
 
         // Check all one-to-many relationship vectors
         for rel in &self.specializes {
-            if rel.target == target {
-                return rel.span;
+            if rel.target() == target {
+                return rel.span();
             }
         }
         for rel in &self.redefines {
-            if rel.target == target {
-                return rel.span;
+            if rel.target() == target {
+                return rel.span();
             }
         }
         for rel in &self.subsets {
-            if rel.target == target {
-                return rel.span;
+            if rel.target() == target {
+                return rel.span();
             }
         }
         for rel in &self.references {
-            if rel.target == target {
-                return rel.span;
+            if rel.target() == target {
+                return rel.span();
             }
         }
         for rel in &self.crosses {
-            if rel.target == target {
-                return rel.span;
+            if rel.target() == target {
+                return rel.span();
             }
         }
         for rel in &self.satisfies {
-            if rel.target == target {
-                return rel.span;
+            if rel.target() == target {
+                return rel.span();
             }
         }
         for rel in &self.performs {
-            if rel.target == target {
-                return rel.span;
+            if rel.target() == target {
+                return rel.span();
             }
         }
         for rel in &self.exhibits {
-            if rel.target == target {
-                return rel.span;
+            if rel.target() == target {
+                return rel.span();
             }
         }
         for rel in &self.includes {
-            if rel.target == target {
-                return rel.span;
+            if rel.target() == target {
+                return rel.span();
             }
         }
         for rel in &self.asserts {
-            if rel.target == target {
-                return rel.span;
+            if rel.target() == target {
+                return rel.span();
             }
         }
         for rel in &self.verifies {
-            if rel.target == target {
-                return rel.span;
+            if rel.target() == target {
+                return rel.span();
             }
         }
         for rel in &self.meta {
-            if rel.target == target {
-                return rel.span;
+            if rel.target() == target {
+                return rel.span();
             }
         }
 
@@ -242,48 +454,102 @@ impl Relationships {
 
     /// Get all relationship targets with their spans.
     /// Returns tuples of (relationship_kind, target_name, span).
-    pub fn all_targets_with_spans(&self) -> Vec<(&'static str, &str, Option<Span>)> {
+    pub fn all_targets_with_spans(&self) -> Vec<(&'static str, String, Option<Span>)> {
         let mut result = Vec::new();
 
         if let Some(ref target) = self.typed_by {
-            result.push(("typing", target.as_str(), self.typed_by_span));
+            result.push(("typing", target.clone(), self.typed_by_span));
         }
 
         for rel in &self.specializes {
-            result.push(("specialization", rel.target.as_str(), rel.span));
+            result.push(("specialization", rel.target(), rel.span()));
         }
         for rel in &self.redefines {
-            result.push(("redefinition", rel.target.as_str(), rel.span));
+            result.push(("redefinition", rel.target(), rel.span()));
         }
         for rel in &self.subsets {
-            result.push(("subsetting", rel.target.as_str(), rel.span));
+            result.push(("subsetting", rel.target(), rel.span()));
         }
         for rel in &self.references {
-            result.push(("reference", rel.target.as_str(), rel.span));
+            result.push(("reference", rel.target(), rel.span()));
         }
         for rel in &self.crosses {
-            result.push(("cross", rel.target.as_str(), rel.span));
+            result.push(("cross", rel.target(), rel.span()));
         }
         for rel in &self.satisfies {
-            result.push(("satisfy", rel.target.as_str(), rel.span));
+            result.push(("satisfy", rel.target(), rel.span()));
         }
         for rel in &self.performs {
-            result.push(("perform", rel.target.as_str(), rel.span));
+            result.push(("perform", rel.target(), rel.span()));
         }
         for rel in &self.exhibits {
-            result.push(("exhibit", rel.target.as_str(), rel.span));
+            result.push(("exhibit", rel.target(), rel.span()));
         }
         for rel in &self.includes {
-            result.push(("include", rel.target.as_str(), rel.span));
+            result.push(("include", rel.target(), rel.span()));
         }
         for rel in &self.asserts {
-            result.push(("assert", rel.target.as_str(), rel.span));
+            result.push(("assert", rel.target(), rel.span()));
         }
         for rel in &self.verifies {
-            result.push(("verify", rel.target.as_str(), rel.span));
+            result.push(("verify", rel.target(), rel.span()));
         }
         for rel in &self.meta {
-            result.push(("meta", rel.target.as_str(), rel.span));
+            result.push(("meta", rel.target(), rel.span()));
+        }
+
+        result
+    }
+    
+    /// Get all relationship targets with their spans and chain context.
+    /// Returns tuples of (relationship_kind, target_name, span, chain_context).
+    /// 
+    /// Chain context is `Some((parts, index))` when the target is part of a feature chain
+    /// like `takePicture.focus`. For example, `focus` would have chain_context 
+    /// `Some((["takePicture", "focus"], 1))`.
+    pub fn all_targets_with_chain_context(&self) -> Vec<(&'static str, String, Option<Span>, ChainContext)> {
+        let mut result = Vec::new();
+
+        if let Some(ref target) = self.typed_by {
+            // typed_by doesn't have chain_context stored separately, so None
+            result.push(("typing", target.clone(), self.typed_by_span, None));
+        }
+
+        for rel in &self.specializes {
+            result.push(("specialization", rel.target(), rel.span(), rel.extracted.chain_context()));
+        }
+        for rel in &self.redefines {
+            result.push(("redefinition", rel.target(), rel.span(), rel.extracted.chain_context()));
+        }
+        for rel in &self.subsets {
+            result.push(("subsetting", rel.target(), rel.span(), rel.extracted.chain_context()));
+        }
+        for rel in &self.references {
+            result.push(("reference", rel.target(), rel.span(), rel.extracted.chain_context()));
+        }
+        for rel in &self.crosses {
+            result.push(("cross", rel.target(), rel.span(), rel.extracted.chain_context()));
+        }
+        for rel in &self.satisfies {
+            result.push(("satisfy", rel.target(), rel.span(), rel.extracted.chain_context()));
+        }
+        for rel in &self.performs {
+            result.push(("perform", rel.target(), rel.span(), rel.extracted.chain_context()));
+        }
+        for rel in &self.exhibits {
+            result.push(("exhibit", rel.target(), rel.span(), rel.extracted.chain_context()));
+        }
+        for rel in &self.includes {
+            result.push(("include", rel.target(), rel.span(), rel.extracted.chain_context()));
+        }
+        for rel in &self.asserts {
+            result.push(("assert", rel.target(), rel.span(), rel.extracted.chain_context()));
+        }
+        for rel in &self.verifies {
+            result.push(("verify", rel.target(), rel.span(), rel.extracted.chain_context()));
+        }
+        for rel in &self.meta {
+            result.push(("meta", rel.target(), rel.span(), rel.extracted.chain_context()));
         }
 
         result
@@ -386,7 +652,10 @@ impl Usage {
                 if let Some(ref typed_by) = self.relationships.typed_by {
                     Some((typed_by.as_str(), self.relationships.typed_by_span))
                 } else if let Some(first_subset) = self.relationships.subsets.first() {
-                    Some((first_subset.target.as_str(), first_subset.span))
+                    let target = first_subset.target();
+                    // Leak the string to get static lifetime
+                    let target_str: &'static str = Box::leak(target.into_boxed_str());
+                    Some((target_str, first_subset.span()))
                 } else if let Some(ref name) = self.name {
                     Some((name.as_str(), self.span))
                 } else {

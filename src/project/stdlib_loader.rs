@@ -1,8 +1,7 @@
 mod loader;
 
 use crate::core::constants::STDLIB_DIR;
-use crate::semantic::Workspace;
-use crate::syntax::SyntaxFile;
+use crate::ide::AnalysisHost;
 use std::path::PathBuf;
 
 /// Loads the standard library from /sysml.lib/ at startup
@@ -57,41 +56,22 @@ impl StdLibLoader {
         self.loaded
     }
 
-    /// Ensures stdlib is loaded - loads only if not already loaded
-    ///
-    /// # Errors
+    /// Ensures stdlib is loaded into an AnalysisHost - loads only if not already loaded.
     ///
     /// Returns `Ok(true)` if stdlib was loaded, `Ok(false)` if already loaded.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - The stdlib directory cannot be read
-    /// - File collection fails
-    ///
-    /// Note: Individual file parse failures are logged but do not cause the load to fail.
-    pub fn ensure_loaded(&mut self, workspace: &mut Workspace<SyntaxFile>) -> Result<bool, String> {
-        // Don't reload if already loaded
-        if self.loaded || workspace.has_stdlib() {
+    pub fn ensure_loaded_into_host(&mut self, host: &mut AnalysisHost) -> Result<bool, String> {
+        if self.loaded {
             return Ok(false);
         }
 
-        self.load(workspace)?;
+        self.load_into_host(host)?;
         self.loaded = true;
         Ok(true)
     }
 
-    /// Loads the SysML standard library into the workspace.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - The stdlib directory cannot be read
-    /// - File collection fails
-    ///
-    /// Note: Individual file parse failures are logged but do not cause the load to fail.
-    pub fn load(&self, workspace: &mut Workspace<SyntaxFile>) -> Result<(), String> {
-        loader::load(&self.stdlib_path, workspace)
+    /// Loads the SysML standard library into an AnalysisHost.
+    pub fn load_into_host(&self, host: &mut AnalysisHost) -> Result<(), String> {
+        loader::load_into_host(&self.stdlib_path, host)
     }
 }
 
@@ -100,6 +80,3 @@ impl Default for StdLibLoader {
         Self::new()
     }
 }
-
-#[cfg(test)]
-mod tests;

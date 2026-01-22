@@ -20,13 +20,9 @@
 //!
 //! ```rust
 //! use syster::core::error_codes::SEMANTIC_DUPLICATE_DEFINITION;
-//! use syster::semantic::SemanticError;
 //!
-//! let error = SemanticError::duplicate_definition(
-//!     "Vehicle".to_string(),
-//!     None,
-//! );
-//! // Error will display as: "E001: Symbol 'Vehicle' is already defined in this scope"
+//! // Error codes are used for consistent error reporting
+//! assert_eq!(SEMANTIC_DUPLICATE_DEFINITION, "E001");
 //! ```
 
 // ============================================================================

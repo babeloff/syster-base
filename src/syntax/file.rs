@@ -37,22 +37,15 @@ pub fn extract_kerml_imports(file: &KerMLFile) -> Vec<String> {
         .collect()
 }
 
-// Implement ParsedFile trait for semantic layer
-impl crate::semantic::ParsedFile for SyntaxFile {
-    fn extract_imports(&self) -> Vec<String> {
-        match self {
-            SyntaxFile::SysML(sysml_file) => extract_sysml_imports(sysml_file),
-            SyntaxFile::KerML(kerml_file) => extract_kerml_imports(kerml_file),
-        }
-    }
-}
-
 impl SyntaxFile {
     /// Extracts import statements from the file
     ///
     /// Returns a vector of qualified import paths found in the file.
     pub fn extract_imports(&self) -> Vec<String> {
-        crate::semantic::ParsedFile::extract_imports(self)
+        match self {
+            SyntaxFile::SysML(sysml_file) => extract_sysml_imports(sysml_file),
+            SyntaxFile::KerML(kerml_file) => extract_kerml_imports(kerml_file),
+        }
     }
 
     /// Returns a reference to the SysML file if this is a SysML file

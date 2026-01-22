@@ -1005,7 +1005,7 @@ state_action_usage = {
 }
 
 empty_action_usage = {
-    ""
+    ""sy
 }
 
 performed_action_usage = {

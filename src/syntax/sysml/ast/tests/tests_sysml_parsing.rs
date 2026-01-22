@@ -22,7 +22,7 @@ fn test_parse_definition_with_specialization() {
         "Expected 1 specialization, got: {:?}",
         def.relationships.specializes
     );
-    assert_eq!(def.relationships.specializes[0].target, "Vehicle");
+    assert_eq!(def.relationships.specializes[0].target(), "Vehicle");
 }
 
 #[test]
@@ -57,7 +57,7 @@ fn test_parse_usage_with_subsets() {
         "Expected 1 subset, got: {:?}",
         usage.relationships.subsets
     );
-    assert_eq!(usage.relationships.subsets[0].target, "vehicle1");
+    assert_eq!(usage.relationships.subsets[0].target(), "vehicle1");
 }
 
 #[test]
@@ -75,7 +75,7 @@ fn test_parse_usage_with_redefines() {
         "Expected 1 redefinition, got: {:?}",
         usage.relationships.redefines
     );
-    assert_eq!(usage.relationships.redefines[0].target, "vehicle1");
+    assert_eq!(usage.relationships.redefines[0].target(), "vehicle1");
 }
 
 #[test]
@@ -88,8 +88,8 @@ fn test_parse_definition_with_multiple_specializations() {
     let def = parse_definition(pairs.unwrap().next().unwrap()).unwrap();
     assert_eq!(def.name, Some("SportsCar".to_string()));
     assert_eq!(def.relationships.specializes.len(), 2);
-    assert_eq!(def.relationships.specializes[0].target, "Car");
-    assert_eq!(def.relationships.specializes[1].target, "Vehicle");
+    assert_eq!(def.relationships.specializes[0].target(), "Car");
+    assert_eq!(def.relationships.specializes[1].target(), "Vehicle");
 }
 
 #[test]
@@ -102,9 +102,9 @@ fn test_parse_usage_with_multiple_subsets() {
     let usage = parse_usage(pairs.unwrap().next().unwrap());
     assert_eq!(usage.name, Some("myPart".to_string()));
     assert_eq!(usage.relationships.subsets.len(), 3);
-    assert_eq!(usage.relationships.subsets[0].target, "part1");
-    assert_eq!(usage.relationships.subsets[1].target, "part2");
-    assert_eq!(usage.relationships.subsets[2].target, "part3");
+    assert_eq!(usage.relationships.subsets[0].target(), "part1");
+    assert_eq!(usage.relationships.subsets[1].target(), "part2");
+    assert_eq!(usage.relationships.subsets[2].target(), "part3");
 }
 
 #[test]
@@ -118,7 +118,7 @@ fn test_parse_usage_with_typed_and_subsets() {
     assert_eq!(usage.name, Some("vehicle".to_string()));
     assert_eq!(usage.relationships.typed_by, Some("VehicleDef".to_string()));
     assert_eq!(usage.relationships.subsets.len(), 1);
-    assert_eq!(usage.relationships.subsets[0].target, "basePart");
+    assert_eq!(usage.relationships.subsets[0].target(), "basePart");
 }
 
 #[test]
@@ -131,8 +131,8 @@ fn test_parse_usage_with_multiple_redefines() {
     let usage = parse_usage(pairs.unwrap().next().unwrap());
     assert_eq!(usage.name, Some("newPart".to_string()));
     assert_eq!(usage.relationships.redefines.len(), 2);
-    assert_eq!(usage.relationships.redefines[0].target, "oldPart1");
-    assert_eq!(usage.relationships.redefines[1].target, "oldPart2");
+    assert_eq!(usage.relationships.redefines[0].target(), "oldPart1");
+    assert_eq!(usage.relationships.redefines[1].target(), "oldPart2");
 }
 
 #[test]
@@ -145,7 +145,7 @@ fn test_parse_action_definition_with_specialization() {
     let def = parse_definition(pairs.unwrap().next().unwrap()).unwrap();
     assert_eq!(def.name, Some("Drive".to_string()));
     assert_eq!(def.relationships.specializes.len(), 1);
-    assert_eq!(def.relationships.specializes[0].target, "Action");
+    assert_eq!(def.relationships.specializes[0].target(), "Action");
 }
 
 #[test]
@@ -158,7 +158,7 @@ fn test_parse_requirement_definition_with_specialization() {
     let def = parse_definition(pairs.unwrap().next().unwrap()).unwrap();
     assert_eq!(def.name, Some("SafetyReq".to_string()));
     assert_eq!(def.relationships.specializes.len(), 1);
-    assert_eq!(def.relationships.specializes[0].target, "BaseRequirement");
+    assert_eq!(def.relationships.specializes[0].target(), "BaseRequirement");
 }
 
 #[test]
@@ -208,9 +208,9 @@ fn test_parse_usage_complex_relationships() {
     assert_eq!(usage.name, Some("enginePart".to_string()));
     assert_eq!(usage.relationships.typed_by, Some("Engine".to_string()));
     assert_eq!(usage.relationships.subsets.len(), 1);
-    assert_eq!(usage.relationships.subsets[0].target, "vehiclePart");
+    assert_eq!(usage.relationships.subsets[0].target(), "vehiclePart");
     assert_eq!(usage.relationships.redefines.len(), 1);
-    assert_eq!(usage.relationships.redefines[0].target, "oldEngine");
+    assert_eq!(usage.relationships.redefines[0].target(), "oldEngine");
 }
 
 #[test]

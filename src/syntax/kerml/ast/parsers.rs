@@ -337,6 +337,7 @@ pub fn parse_package(pest: &mut Pairs<Rule>) -> Result<Package, ParseError> {
 
     Ok(Package {
         name,
+        short_name: None, // TODO: Parse short_name for KerML packages
         elements,
         span,
     })

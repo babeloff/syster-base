@@ -48,23 +48,7 @@ fn test_parser_layer_only_depends_on_core() {
     );
 }
 
-#[test]
-fn test_semantic_layer_only_depends_on_core_and_parser() {
-    let violations = collect_layer_violations_with_skip(
-        Path::new("src/semantic"),
-        &["core", "parser", "syntax"],
-        "semantic",
-        |path, _module| {
-            // Allow tests to import anything
-            path.file_name().is_some_and(|n| n == "tests.rs")
-        },
-    );
-    assert!(
-        violations.is_empty(),
-        "\n❌ Semantic layer should only depend on core, parser, and syntax (the file type enum, not sysml/kerml ASTs).\nViolations:\n{}\n",
-        violations.join("\n")
-    );
-}
+// NOTE: semantic layer tests removed - semantic module was deleted
 
 #[test]
 fn test_syntax_layer_has_minimal_dependencies() {
@@ -81,12 +65,12 @@ fn test_syntax_layer_has_minimal_dependencies() {
 fn test_project_layer_dependencies() {
     let violations = collect_layer_violations(
         Path::new("src/project"),
-        &["core", "parser", "semantic", "syntax"],
+        &["core", "parser", "syntax", "ide"],
         "project",
     );
     assert!(
         violations.is_empty(),
-        "\n❌ Project layer should only depend on core, parser, semantic, and syntax.\nViolations:\n{}\n",
+        "\n❌ Project layer should only depend on core, parser, syntax, and ide.\nViolations:\n{}\n",
         violations.join("\n")
     );
 }
@@ -117,11 +101,10 @@ fn test_show_architecture_violations_summary() {
     let layers = vec![
         ("core", vec![], "src/core"),
         ("parser", vec!["core"], "src/parser"),
-        ("semantic", vec!["core", "parser", "syntax"], "src/semantic"),
         ("syntax", vec!["core", "parser"], "src/syntax"),
         (
             "project",
-            vec!["core", "parser", "semantic", "syntax"],
+            vec!["core", "parser", "syntax", "ide"],
             "src/project",
         ),
     ];
@@ -147,43 +130,7 @@ fn test_show_architecture_violations_summary() {
 // PHASE 6: Semantic Adapter Separation Tests
 // ============================================================================
 
-/// Checks that only files in `semantic/adapters/` and `semantic/processors/` import from syntax
-#[test]
-fn test_semantic_layer_only_adapters_import_syntax() {
-    let syntax_patterns = [
-        "use crate::syntax::sysml",
-        "use crate::syntax::kerml",
-        "from syntax::sysml",
-        "from syntax::kerml",
-    ];
-
-    let violations = find_files_with_imports(Path::new("src/semantic"), &syntax_patterns, |path| {
-        // Skip adapters, processors, and test files/directories
-        path.components().any(|c| {
-            matches!(
-                c.as_os_str().to_str(),
-                Some("adapters" | "processors" | "tests")
-            )
-        }) || path.file_name().is_some_and(|n| {
-            n == "tests.rs"
-                || n == "workspace_file_test.rs"
-                || n.to_string_lossy().starts_with("tests_")
-        })
-    });
-
-    assert!(
-        violations.is_empty(),
-        "\n❌ Architecture violation: {} file(s) in semantic/ import from syntax layer:\n{}\n\n\
-        Only adapters/ and processors/ may import from syntax::sysml or syntax::kerml.\n",
-        violations.len(),
-        format_violation_list(
-            &violations
-                .iter()
-                .map(|(file, line)| format!("{}:{}", file.display(), line))
-                .collect::<Vec<_>>()
-        )
-    );
-}
+// NOTE: test_semantic_layer_only_adapters_import_syntax removed - semantic module was deleted
 
 /// Verifies that all required constants are defined in core/constants.rs
 #[test]

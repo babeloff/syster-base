@@ -331,6 +331,7 @@ impl Named for Definition {
 fn test_ast_node_trait() {
     let pkg = Package {
         name: Some("TestPackage".to_string()),
+        short_name: None,
         elements: vec![],
         span: None,
     };
@@ -368,7 +369,7 @@ fn test_definition_with_specialization() {
     assert_eq!(definition.kind, DefinitionKind::Part);
     assert_eq!(definition.name, Some("Car".to_string()));
     assert_eq!(definition.relationships.specializes.len(), 1);
-    assert_eq!(definition.relationships.specializes[0].target, "Vehicle");
+    assert_eq!(definition.relationships.specializes[0].target(), "Vehicle");
 }
 
 #[test]
@@ -386,14 +387,14 @@ fn test_definition_with_multiple_specializations() {
             .relationships
             .specializes
             .iter()
-            .any(|s| s.target == "Vehicle")
+            .any(|s| s.target() == "Vehicle")
     );
     assert!(
         definition
             .relationships
             .specializes
             .iter()
-            .any(|s| s.target == "Machine")
+            .any(|s| s.target() == "Machine")
     );
 }
 
@@ -420,7 +421,7 @@ fn test_usage_with_subsetting() {
     assert_eq!(usage.name, Some("specialCar".to_string()));
     assert_eq!(usage.relationships.typed_by, Some("Car".to_string()));
     assert_eq!(usage.relationships.subsets.len(), 1);
-    assert_eq!(usage.relationships.subsets[0].target, "baseCar");
+    assert_eq!(usage.relationships.subsets[0].target(), "baseCar");
 }
 
 #[test]
@@ -434,7 +435,7 @@ fn test_usage_with_redefinition() {
     assert_eq!(usage.name, Some("redefinedCar".to_string()));
     assert_eq!(usage.relationships.typed_by, Some("Car".to_string()));
     assert_eq!(usage.relationships.redefines.len(), 1);
-    assert_eq!(usage.relationships.redefines[0].target, "originalCar");
+    assert_eq!(usage.relationships.redefines[0].target(), "originalCar");
 }
 
 #[test]
@@ -451,21 +452,21 @@ fn test_usage_with_multiple_subsettings() {
             .relationships
             .subsets
             .iter()
-            .any(|s| s.target == "car1")
+            .any(|s| s.target() == "car1")
     );
     assert!(
         usage
             .relationships
             .subsets
             .iter()
-            .any(|s| s.target == "car2")
+            .any(|s| s.target() == "car2")
     );
     assert!(
         usage
             .relationships
             .subsets
             .iter()
-            .any(|s| s.target == "car3")
+            .any(|s| s.target() == "car3")
     );
 }
 
@@ -504,7 +505,7 @@ fn test_action_usage_with_index() {
     assert_eq!(usage.name, Some("myDrive".to_string()));
     assert_eq!(usage.relationships.typed_by, Some("Drive".to_string()));
     assert_eq!(usage.relationships.subsets.len(), 1);
-    assert_eq!(usage.relationships.subsets[0].target, "baseAction");
+    assert_eq!(usage.relationships.subsets[0].target(), "baseAction");
 }
 
 #[test]
@@ -517,7 +518,7 @@ fn test_requirement_with_specialization() {
     assert_eq!(definition.kind, DefinitionKind::Requirement);
     assert_eq!(definition.name, Some("SafetyReq".to_string()));
     assert_eq!(definition.relationships.specializes.len(), 1);
-    assert_eq!(definition.relationships.specializes[0].target, "BaseReq");
+    assert_eq!(definition.relationships.specializes[0].target(), "BaseReq");
 }
 
 #[test]
@@ -648,6 +649,7 @@ fn test_relationships_none() {
 fn test_element_is_package() {
     let element = Element::Package(Package {
         name: Some("Test".to_string()),
+        short_name: None,
         elements: vec![],
         span: None,
     });
@@ -720,17 +722,17 @@ fn test_complex_usage_all_relationships() {
             .relationships
             .subsets
             .iter()
-            .any(|s| s.target == "base1")
+            .any(|s| s.target() == "base1")
     );
     assert!(
         usage
             .relationships
             .subsets
             .iter()
-            .any(|s| s.target == "base2")
+            .any(|s| s.target() == "base2")
     );
     assert_eq!(usage.relationships.redefines.len(), 1);
-    assert_eq!(usage.relationships.redefines[0].target, "redefined1");
+    assert_eq!(usage.relationships.redefines[0].target(), "redefined1");
 }
 
 #[test]
@@ -772,6 +774,7 @@ fn test_named_trait_for_usage() {
 fn test_named_trait_for_package() {
     let package = Package {
         name: Some("TestPackage".to_string()),
+        short_name: None,
         elements: vec![],
         span: None,
     };

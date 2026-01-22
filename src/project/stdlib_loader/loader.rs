@@ -1,19 +1,11 @@
+use crate::ide::AnalysisHost;
 use crate::project::file_loader;
-use crate::semantic::Workspace;
 use crate::syntax::SyntaxFile;
 use rayon::prelude::*;
 use std::path::PathBuf;
 
-/// Loads the SysML standard library into the workspace.
-///
-/// # Errors
-///
-/// Returns an error if:
-/// - The stdlib directory cannot be read
-/// - File collection fails
-///
-/// Note: Individual file parse failures are logged but do not cause the load to fail.
-pub fn load(stdlib_path: &PathBuf, workspace: &mut Workspace<SyntaxFile>) -> Result<(), String> {
+/// Loads the SysML standard library into an AnalysisHost.
+pub fn load_into_host(stdlib_path: &PathBuf, host: &mut AnalysisHost) -> Result<(), String> {
     if !stdlib_path.exists() || !stdlib_path.is_dir() {
         return Ok(());
     }
@@ -30,12 +22,9 @@ pub fn load(stdlib_path: &PathBuf, workspace: &mut Workspace<SyntaxFile>) -> Res
     // Add successfully parsed files
     for (_path, result) in results {
         if let Ok((path, file)) = result {
-            workspace.add_file(path, file);
+            host.set_file(path, file);
         }
-        // Silently skip parse failures to avoid performance impact
     }
-
-    workspace.mark_stdlib_loaded();
 
     Ok(())
 }

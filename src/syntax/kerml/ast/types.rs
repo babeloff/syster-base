@@ -19,6 +19,8 @@ pub struct NamespaceDeclaration {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Package {
     pub name: Option<String>,
+    /// Short name (e.g., alias)
+    pub short_name: Option<String>,
     pub elements: Vec<Element>,
     /// Span of the package name identifier
     pub span: Option<Span>,

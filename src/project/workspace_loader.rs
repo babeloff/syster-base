@@ -1,5 +1,4 @@
-use crate::semantic::Workspace;
-use crate::syntax::SyntaxFile;
+use crate::ide::AnalysisHost;
 use std::path::PathBuf;
 
 use super::file_loader;
@@ -12,56 +11,35 @@ impl WorkspaceLoader {
         Self
     }
 
-    /// Loads a single SysML or KerML file into the workspace.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - The file cannot be read
-    /// - The file has an invalid extension
-    /// - The file fails to parse
-    /// - AST construction fails
-    pub fn load_file<P: Into<PathBuf>>(
+    /// Loads all SysML and KerML files from a directory into an AnalysisHost.
+    pub fn load_directory_into_host<P: Into<PathBuf>>(
         &self,
         path: P,
-        workspace: &mut Workspace<SyntaxFile>,
-    ) -> Result<(), String> {
-        let path = path.into();
-        self.load_file_internal(&path, workspace)
-    }
-
-    /// Loads all SysML and KerML files from a directory recursively.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - The directory does not exist or is not a directory
-    /// - Any file in the directory tree cannot be read
-    /// - Any file fails to parse
-    pub fn load_directory<P: Into<PathBuf>>(
-        &self,
-        path: P,
-        workspace: &mut Workspace<SyntaxFile>,
+        host: &mut AnalysisHost,
     ) -> Result<(), String> {
         let path = path.into();
         if !path.exists() || !path.is_dir() {
             return Err(format!("Directory not found: {}", path.display()));
         }
-        self.load_directory_recursive(&path, workspace)
+        self.load_directory_recursive_into_host(&path, host)
     }
 
-    fn load_directory_recursive(
+    fn load_directory_recursive_into_host(
         &self,
         dir: &PathBuf,
-        workspace: &mut Workspace<SyntaxFile>,
+        host: &mut AnalysisHost,
     ) -> Result<(), String> {
         let paths = file_loader::collect_file_paths(dir)?;
         let mut errors = Vec::new();
 
         for path in paths {
-            if let Err(e) = self.load_file_internal(&path, workspace) {
-                // Continue loading other files, collect errors
-                errors.push(format!("{}: {}", path.display(), e));
+            match file_loader::load_and_parse(&path) {
+                Ok(file) => {
+                    host.set_file(path, file);
+                }
+                Err(e) => {
+                    errors.push(format!("{}: {}", path.display(), e));
+                }
             }
         }
 
@@ -76,13 +54,15 @@ impl WorkspaceLoader {
         }
     }
 
-    fn load_file_internal(
+    /// Loads a single file into an AnalysisHost.
+    pub fn load_file_into_host<P: Into<PathBuf>>(
         &self,
-        path: &PathBuf,
-        workspace: &mut Workspace<SyntaxFile>,
+        path: P,
+        host: &mut AnalysisHost,
     ) -> Result<(), String> {
-        let file = file_loader::load_and_parse(path)?;
-        workspace.add_file(path.clone(), file);
+        let path = path.into();
+        let file = file_loader::load_and_parse(&path)?;
+        host.set_file(path, file);
         Ok(())
     }
 }
@@ -92,6 +72,3 @@ impl Default for WorkspaceLoader {
         Self::new()
     }
 }
-
-#[cfg(test)]
-mod tests;

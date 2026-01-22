@@ -249,6 +249,58 @@ pub fn extract_name_from_identification(
     (None, None)
 }
 
+/// Extract both short_name and regular name from an identification rule.
+/// identification = { (short_name ~ regular_name?) | regular_name }
+///
+/// Returns (short_name, short_name_span, regular_name, regular_name_span)
+pub fn extract_full_identification(
+    pair: Pair<Rule>,
+) -> (Option<String>, Option<crate::core::Span>, Option<String>, Option<crate::core::Span>) {
+    let inner: Vec<_> = pair.into_inner().collect();
+    let mut short_name = None;
+    let mut short_name_span = None;
+    let mut regular_name = None;
+    let mut regular_name_span = None;
+
+    for p in &inner {
+        match p.as_rule() {
+            Rule::short_name => {
+                for inner_p in p.clone().into_inner() {
+                    if inner_p.as_rule() == Rule::identifier {
+                        short_name = Some(inner_p.as_str().to_string());
+                        short_name_span = Some(to_span(inner_p.as_span()));
+                    } else if inner_p.as_rule() == Rule::quoted_name {
+                        let name = inner_p
+                            .as_str()
+                            .trim_start_matches('\'')
+                            .trim_end_matches('\'')
+                            .to_string();
+                        short_name = Some(name);
+                        short_name_span = Some(to_span(inner_p.as_span()));
+                    }
+                }
+            }
+            Rule::regular_name => {
+                if let Some(id) = p.clone().into_inner().next() {
+                    let name = if id.as_rule() == Rule::quoted_name {
+                        id.as_str()
+                            .trim_start_matches('\'')
+                            .trim_end_matches('\'')
+                            .to_string()
+                    } else {
+                        id.as_str().to_string()
+                    };
+                    regular_name = Some(name);
+                    regular_name_span = Some(to_span(id.as_span()));
+                }
+            }
+            _ => {}
+        }
+    }
+
+    (short_name, short_name_span, regular_name, regular_name_span)
+}
+
 // ============================================================================
 // Kind mapping
 // ============================================================================
@@ -445,11 +497,7 @@ fn extract_rels_recursive(pair: &Pair<Rule>, rel: &mut super::types::Relationshi
             for p in pair.clone().into_inner() {
                 if p.as_rule() == Rule::owned_subclassification {
                     for r in all_refs_with_spans_from(&p) {
-                        rel.specializes.push(super::types::SpecializationRel {
-                            target: r.name,
-                            span: r.span,
-                            chain_context: r.chain_context,
-                        });
+                        rel.specializes.push(super::types::SpecializationRel::new(r));
                     }
                 }
             }
@@ -458,49 +506,29 @@ fn extract_rels_recursive(pair: &Pair<Rule>, rel: &mut super::types::Relationshi
             for p in pair.clone().into_inner() {
                 if p.as_rule() == Rule::owned_subclassification {
                     for r in all_refs_with_spans_from(&p) {
-                        rel.redefines.push(super::types::RedefinitionRel {
-                            target: r.name,
-                            span: r.span,
-                            chain_context: r.chain_context,
-                        });
+                        rel.redefines.push(super::types::RedefinitionRel::new(r));
                     }
                 }
             }
         }
         Rule::satisfy_requirement_usage => {
             for r in all_refs_with_spans_from(pair) {
-                rel.satisfies.push(super::types::SatisfyRel {
-                    target: r.name,
-                    span: r.span,
-                    chain_context: r.chain_context,
-                });
+                rel.satisfies.push(super::types::SatisfyRel::new(r));
             }
         }
         Rule::perform_action_usage => {
             for r in all_refs_with_spans_from(pair) {
-                rel.performs.push(super::types::PerformRel {
-                    target: r.name,
-                    span: r.span,
-                    chain_context: r.chain_context,
-                });
+                rel.performs.push(super::types::PerformRel::new(r));
             }
         }
         Rule::exhibit_state_usage => {
             for r in all_refs_with_spans_from(pair) {
-                rel.exhibits.push(super::types::ExhibitRel {
-                    target: r.name,
-                    span: r.span,
-                    chain_context: r.chain_context,
-                });
+                rel.exhibits.push(super::types::ExhibitRel::new(r));
             }
         }
         Rule::include_use_case_usage => {
             for r in all_refs_with_spans_from(pair) {
-                rel.includes.push(super::types::IncludeRel {
-                    target: r.name,
-                    span: r.span,
-                    chain_context: r.chain_context,
-                });
+                rel.includes.push(super::types::IncludeRel::new(r));
             }
         }
         Rule::feature_specialization => {
@@ -516,38 +544,22 @@ fn extract_rels_recursive(pair: &Pair<Rule>, rel: &mut super::types::Relationshi
                     }
                     Rule::subsettings => {
                         for r in all_refs_with_spans_from(&spec) {
-                            rel.subsets.push(super::types::SubsettingRel {
-                                target: r.name,
-                                span: r.span,
-                                chain_context: r.chain_context,
-                            });
+                            rel.subsets.push(super::types::SubsettingRel::new(r));
                         }
                     }
                     Rule::redefinitions => {
                         for r in all_refs_with_spans_from(&spec) {
-                            rel.redefines.push(super::types::RedefinitionRel {
-                                target: r.name,
-                                span: r.span,
-                                chain_context: r.chain_context,
-                            });
+                            rel.redefines.push(super::types::RedefinitionRel::new(r));
                         }
                     }
                     Rule::references => {
                         for r in all_refs_with_spans_from(&spec) {
-                            rel.references.push(super::types::ReferenceRel {
-                                target: r.name,
-                                span: r.span,
-                                chain_context: r.chain_context,
-                            });
+                            rel.references.push(super::types::ReferenceRel::new(r));
                         }
                     }
                     Rule::crosses => {
                         for r in all_refs_with_spans_from(&spec) {
-                            rel.crosses.push(super::types::CrossRel {
-                                target: r.name,
-                                span: r.span,
-                                chain_context: r.chain_context,
-                            });
+                            rel.crosses.push(super::types::CrossRel::new(r));
                         }
                     }
                     _ => {}

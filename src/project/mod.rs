@@ -1,9 +1,7 @@
-mod diagnostic_publisher;
 pub mod file_loader;
 pub mod stdlib_loader;
 pub mod workspace_loader;
 
-pub use diagnostic_publisher::DiagnosticPublisher;
 pub use stdlib_loader::StdLibLoader;
 pub use workspace_loader::WorkspaceLoader;
 
