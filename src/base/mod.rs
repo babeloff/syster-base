@@ -13,8 +13,8 @@ mod intern;
 mod span;
 
 pub use file_id::FileId;
-pub use intern::{Name, Interner};
-pub use span::{TextRange, TextSize, LineCol, LineIndex};
+pub use intern::{Interner, Name};
+pub use span::{LineCol, LineIndex, TextRange, TextSize};
 
 // Re-export text-size types for convenience
 pub use text_size;

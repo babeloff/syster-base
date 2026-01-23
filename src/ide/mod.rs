@@ -24,25 +24,25 @@
 //! ```
 
 mod analysis;
-mod goto;
-mod hover;
 mod completion;
-mod references;
-mod symbols;
 mod document_links;
 mod folding;
-mod selection;
+mod goto;
+mod hover;
 mod inlay_hints;
+mod references;
+mod selection;
 mod semantic_tokens;
+mod symbols;
 
-pub use analysis::{AnalysisHost, Analysis};
-pub use goto::{goto_definition, GotoResult, GotoTarget};
-pub use hover::{hover, HoverResult};
-pub use completion::{completions, CompletionItem, CompletionKind};
-pub use references::{find_references, ReferenceResult, Reference};
-pub use symbols::{workspace_symbols, document_symbols, SymbolInfo};
-pub use document_links::{document_links, DocumentLink};
-pub use folding::{folding_ranges, FoldingRange};
-pub use selection::{selection_ranges, SelectionRange};
-pub use inlay_hints::{inlay_hints, InlayHint, InlayHintKind};
-pub use semantic_tokens::{semantic_tokens, SemanticToken, TokenType};
+pub use analysis::{Analysis, AnalysisHost};
+pub use completion::{CompletionItem, CompletionKind, completions};
+pub use document_links::{DocumentLink, document_links};
+pub use folding::{FoldingRange, folding_ranges};
+pub use goto::{GotoResult, GotoTarget, goto_definition};
+pub use hover::{HoverResult, hover};
+pub use inlay_hints::{InlayHint, InlayHintKind, inlay_hints};
+pub use references::{Reference, ReferenceResult, find_references};
+pub use selection::{SelectionRange, selection_ranges};
+pub use semantic_tokens::{SemanticToken, TokenType, semantic_tokens};
+pub use symbols::{SymbolInfo, document_symbols, workspace_symbols};

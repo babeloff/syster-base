@@ -73,7 +73,7 @@ mod tests {
     fn test_def_id_equality() {
         let file1 = FileId::new(1);
         let file2 = FileId::new(2);
-        
+
         let a = DefId::new(file1, LocalDefId::new(0));
         let b = DefId::new(file1, LocalDefId::new(0));
         let c = DefId::new(file1, LocalDefId::new(1));

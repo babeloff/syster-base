@@ -23,16 +23,20 @@ pub struct SelectionRange {
 ///
 /// Returns spans from innermost to outermost that contain the position.
 /// Used for "Expand Selection" feature.
-pub fn selection_ranges(index: &SymbolIndex, file: FileId, line: u32, col: u32) -> Vec<SelectionRange> {
+pub fn selection_ranges(
+    index: &SymbolIndex,
+    file: FileId,
+    line: u32,
+    col: u32,
+) -> Vec<SelectionRange> {
     let mut ranges: Vec<SelectionRange> = index
         .symbols_in_file(file)
         .into_iter()
         .filter(|sym| {
             // Check if position is within symbol's span
-            let after_start = line > sym.start_line
-                || (line == sym.start_line && col >= sym.start_col);
-            let before_end = line < sym.end_line
-                || (line == sym.end_line && col <= sym.end_col);
+            let after_start =
+                line > sym.start_line || (line == sym.start_line && col >= sym.start_col);
+            let before_end = line < sym.end_line || (line == sym.end_line && col <= sym.end_col);
             after_start && before_end
         })
         .map(|sym| SelectionRange {
@@ -44,7 +48,7 @@ pub fn selection_ranges(index: &SymbolIndex, file: FileId, line: u32, col: u32) 
         .collect();
 
     // Sort by range size (smallest first for innermost)
-    ranges.sort_by(|a, b| range_size(a).cmp(&range_size(b)));
+    ranges.sort_by_key(range_size);
 
     // Deduplicate ranges with the same bounds
     ranges.dedup_by(|a, b| {

@@ -9,10 +9,10 @@ pub mod sysml;
 pub use file::SyntaxFile;
 pub use formatter::{FormatOptions, format_async};
 pub use normalized::{
-    NormalizedElement, NormalizedPackage, NormalizedDefinition, NormalizedUsage,
-    NormalizedImport, NormalizedAlias, NormalizedComment, NormalizedDefKind,
-    NormalizedUsageKind, NormalizedRelationship, NormalizedRelKind,
-    SysMLNormalizedIter, KerMLNormalizedIter,
+    KerMLNormalizedIter, NormalizedAlias, NormalizedComment, NormalizedDefKind,
+    NormalizedDefinition, NormalizedElement, NormalizedImport, NormalizedPackage,
+    NormalizedRelKind, NormalizedRelationship, NormalizedUsage, NormalizedUsageKind,
+    SysMLNormalizedIter,
 };
 
 #[cfg(test)]

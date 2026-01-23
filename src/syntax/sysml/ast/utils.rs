@@ -255,7 +255,12 @@ pub fn extract_name_from_identification(
 /// Returns (short_name, short_name_span, regular_name, regular_name_span)
 pub fn extract_full_identification(
     pair: Pair<Rule>,
-) -> (Option<String>, Option<crate::core::Span>, Option<String>, Option<crate::core::Span>) {
+) -> (
+    Option<String>,
+    Option<crate::core::Span>,
+    Option<String>,
+    Option<crate::core::Span>,
+) {
     let inner: Vec<_> = pair.into_inner().collect();
     let mut short_name = None;
     let mut short_name_span = None;
@@ -497,7 +502,8 @@ fn extract_rels_recursive(pair: &Pair<Rule>, rel: &mut super::types::Relationshi
             for p in pair.clone().into_inner() {
                 if p.as_rule() == Rule::owned_subclassification {
                     for r in all_refs_with_spans_from(&p) {
-                        rel.specializes.push(super::types::SpecializationRel::new(r));
+                        rel.specializes
+                            .push(super::types::SpecializationRel::new(r));
                     }
                 }
             }

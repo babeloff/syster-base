@@ -23,26 +23,33 @@ package VehicleModel {
     host.set_file_content("test.sysml", source);
     let analysis = host.analysis();
     let index = analysis.symbol_index();
-    
+
     // Find the driver part
-    let driver = index.all_symbols()
+    let driver = index
+        .all_symbols()
         .find(|s| &*s.name == "driver")
         .expect("Should find driver");
-    
+
     println!("\n=== DRIVER SYMBOL ===");
     println!("name: {:?}", driver.name);
     println!("kind: {:?}", driver.kind);
     println!("type_refs count: {}", driver.type_refs.len());
-    
+
     for (i, trk) in driver.type_refs.iter().enumerate() {
         match trk {
             TypeRefKind::Simple(tr) => {
-                println!("  type_ref[{}] SIMPLE: target='{}' kind={:?}", i, tr.target, tr.kind);
+                println!(
+                    "  type_ref[{}] SIMPLE: target='{}' kind={:?}",
+                    i, tr.target, tr.kind
+                );
             }
             TypeRefKind::Chain(chain) => {
                 println!("  type_ref[{}] CHAIN with {} parts:", i, chain.parts.len());
                 for (j, part) in chain.parts.iter().enumerate() {
-                    println!("    part[{}]: target='{}' kind={:?}", j, part.target, part.kind);
+                    println!(
+                        "    part[{}]: target='{}' kind={:?}",
+                        j, part.target, part.kind
+                    );
                 }
             }
         }

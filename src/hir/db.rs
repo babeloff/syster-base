@@ -8,7 +8,7 @@ use crate::syntax::SyntaxFile;
 use crate::syntax::sysml::ast::types::SysMLFile;
 
 use super::input::SourceRoot;
-use super::symbols::{extract_symbols_unified, HirSymbol};
+use super::symbols::{HirSymbol, extract_symbols_unified};
 
 // ============================================================================
 // INPUTS
@@ -131,10 +131,10 @@ impl ParseResult {
 #[salsa::tracked]
 pub fn parse_file(db: &dyn salsa::Database, file_text: FileText) -> ParseResult {
     let text = file_text.text(db);
-    
+
     // Use the existing parser (with .sysml extension to satisfy parser requirements)
     let result = crate::syntax::sysml::parser::parse_with_result(text, Path::new("file.sysml"));
-    
+
     if let Some(ast) = result.content {
         let errors: Vec<String> = result.errors.iter().map(|e| format!("{:?}", e)).collect();
         if errors.is_empty() {
@@ -186,7 +186,7 @@ mod tests {
             namespaces: Vec::new(),
             elements: Vec::new(),
         };
-        
+
         let ok = ParseResult::ok(ast.clone());
         assert!(ok.is_ok());
         assert!(!ok.has_errors());
@@ -205,7 +205,7 @@ mod tests {
             namespaces: Vec::new(),
             elements: Vec::new(),
         };
-        
+
         let file = FileId::new(0);
         let symbols = file_symbols(file, &ast);
         assert!(symbols.is_empty());
@@ -225,31 +225,40 @@ mod tests {
                 }
             }
         "#;
-        
-        let result = crate::syntax::sysml::parser::parse_with_result(sysml, std::path::Path::new("test.sysml"));
+
+        let result = crate::syntax::sysml::parser::parse_with_result(
+            sysml,
+            std::path::Path::new("test.sysml"),
+        );
         assert!(result.content.is_some(), "Parse failed");
-        
+
         let ast = result.content.unwrap();
         let file = FileId::new(1);
         let symbols = file_symbols(file, &ast);
-        
+
         // Should have: Vehicle (package), Car (part def), Engine (part def),
         // mass (attribute), engine (part), power (attribute)
-        assert!(symbols.len() >= 4, "Expected at least 4 symbols, got {}", symbols.len());
-        
+        assert!(
+            symbols.len() >= 4,
+            "Expected at least 4 symbols, got {}",
+            symbols.len()
+        );
+
         // Find the Vehicle package
         let vehicle = symbols.iter().find(|s| s.name.as_ref() == "Vehicle");
         assert!(vehicle.is_some(), "Vehicle package not found");
         assert_eq!(vehicle.unwrap().kind, SymbolKind::Package);
-        
+
         // Find the Car definition
         let car = symbols.iter().find(|s| s.name.as_ref() == "Car");
         assert!(car.is_some(), "Car part def not found");
         assert_eq!(car.unwrap().kind, SymbolKind::PartDef);
         assert_eq!(car.unwrap().qualified_name.as_ref(), "Vehicle::Car");
-        
+
         // Find the Engine definition
-        let engine_def = symbols.iter().find(|s| s.name.as_ref() == "Engine" && s.kind == SymbolKind::PartDef);
+        let engine_def = symbols
+            .iter()
+            .find(|s| s.name.as_ref() == "Engine" && s.kind == SymbolKind::PartDef);
         assert!(engine_def.is_some(), "Engine part def not found");
     }
 
@@ -261,11 +270,14 @@ mod tests {
             }
             part def Inner;
         "#;
-        
-        let result = crate::syntax::sysml::parser::parse_with_result(sysml, std::path::Path::new("test.sysml"));
+
+        let result = crate::syntax::sysml::parser::parse_with_result(
+            sysml,
+            std::path::Path::new("test.sysml"),
+        );
         let ast = result.content.unwrap();
         let symbols = file_symbols(FileId::new(0), &ast);
-        
+
         // Find 'inner' usage
         let inner_usage = symbols.iter().find(|s| s.name.as_ref() == "inner");
         assert!(inner_usage.is_some(), "inner usage not found");
@@ -277,13 +289,17 @@ mod tests {
     fn test_salsa_tracked_parse_query() {
         // Test that the tracked parse_file query works through the database
         let db = RootDatabase::new();
-        
+
         let sysml = "part def Car;";
         let file_text = FileText::new(&db, FileId::new(0), sysml.to_string());
-        
+
         // Call the tracked query
         let result = parse_file(&db, file_text);
-        assert!(result.is_ok(), "Parse failed with errors: {:?}", result.errors);
+        assert!(
+            result.is_ok(),
+            "Parse failed with errors: {:?}",
+            result.errors
+        );
         assert!(result.get_ast().is_some());
     }
 
@@ -291,17 +307,17 @@ mod tests {
     fn test_salsa_tracked_symbols_query() {
         // Test that the tracked file_symbols_from_text query works
         let db = RootDatabase::new();
-        
+
         let sysml = r#"
             package Test {
                 part def Widget;
             }
         "#;
         let file_text = FileText::new(&db, FileId::new(0), sysml.to_string());
-        
+
         // Call the tracked query
         let symbols = file_symbols_from_text(&db, file_text);
-        
+
         assert!(!symbols.is_empty());
         let widget = symbols.iter().find(|s| s.name.as_ref() == "Widget");
         assert!(widget.is_some(), "Widget not found in symbols");
@@ -312,16 +328,15 @@ mod tests {
     fn test_salsa_memoization() {
         // Test that queries are memoized (same input returns same result)
         let db = RootDatabase::new();
-        
+
         let sysml = "part def MemoTest;";
         let file_text = FileText::new(&db, FileId::new(0), sysml.to_string());
-        
+
         // Call twice - should be memoized
         let symbols1 = file_symbols_from_text(&db, file_text);
         let symbols2 = file_symbols_from_text(&db, file_text);
-        
+
         // Results should be equal (memoized)
         assert_eq!(symbols1, symbols2);
     }
 }
-

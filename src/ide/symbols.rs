@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use crate::base::FileId;
-use crate::hir::{SymbolIndex, HirSymbol, SymbolKind};
+use crate::hir::{HirSymbol, SymbolIndex, SymbolKind};
 
 /// A symbol for the workspace symbol list or document outline.
 #[derive(Clone, Debug)]
@@ -40,7 +40,7 @@ impl SymbolInfo {
             end_col: symbol.end_col,
         }
     }
-    
+
     /// Get the container name (parent path) for hierarchy building.
     pub fn container_name(&self) -> Option<&str> {
         let qname = self.qualified_name.as_ref();
@@ -58,14 +58,15 @@ impl SymbolInfo {
 /// List of matching symbols, sorted by name.
 pub fn workspace_symbols(index: &SymbolIndex, query: Option<&str>) -> Vec<SymbolInfo> {
     let query_lower = query.map(|q| q.to_lowercase());
-    
-    let mut results: Vec<SymbolInfo> = index.all_symbols()
+
+    let mut results: Vec<SymbolInfo> = index
+        .all_symbols()
         .filter(|sym| {
             // Skip imports
             if matches!(sym.kind, SymbolKind::Import) {
                 return false;
             }
-            
+
             // Filter by query if provided
             if let Some(ref q) = query_lower {
                 let name_lower = sym.name.to_lowercase();
@@ -77,7 +78,7 @@ pub fn workspace_symbols(index: &SymbolIndex, query: Option<&str>) -> Vec<Symbol
         })
         .map(SymbolInfo::from_hir)
         .collect();
-    
+
     results.sort_by(|a, b| a.name.cmp(&b.name));
     results
 }
@@ -91,7 +92,8 @@ pub fn workspace_symbols(index: &SymbolIndex, query: Option<&str>) -> Vec<Symbol
 /// # Returns
 /// List of symbols in the file, in source order.
 pub fn document_symbols(index: &SymbolIndex, file: FileId) -> Vec<SymbolInfo> {
-    let mut results: Vec<SymbolInfo> = index.symbols_in_file(file)
+    let mut results: Vec<SymbolInfo> = index
+        .symbols_in_file(file)
         .into_iter()
         .filter(|sym| {
             // Skip imports and comments in document outline
@@ -99,20 +101,21 @@ pub fn document_symbols(index: &SymbolIndex, file: FileId) -> Vec<SymbolInfo> {
         })
         .map(SymbolInfo::from_hir)
         .collect();
-    
+
     // Sort by position in file
     results.sort_by(|a, b| {
-        a.start_line.cmp(&b.start_line)
+        a.start_line
+            .cmp(&b.start_line)
             .then(a.start_col.cmp(&b.start_col))
     });
-    
+
     results
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     fn make_symbol(name: &str, qname: &str, kind: SymbolKind, line: u32) -> HirSymbol {
         HirSymbol {
             name: Arc::from(name),
@@ -134,52 +137,62 @@ mod tests {
             is_public: false,
         }
     }
-    
+
     #[test]
     fn test_workspace_symbols_no_filter() {
         let mut index = SymbolIndex::new();
-        index.add_file(FileId::new(0), vec![
-            make_symbol("Vehicle", "Vehicle", SymbolKind::PartDef, 0),
-            make_symbol("Car", "Vehicle::Car", SymbolKind::PartDef, 5),
-            make_symbol("engine", "Vehicle::Car::engine", SymbolKind::PartUsage, 10),
-        ]);
-        
+        index.add_file(
+            FileId::new(0),
+            vec![
+                make_symbol("Vehicle", "Vehicle", SymbolKind::PartDef, 0),
+                make_symbol("Car", "Vehicle::Car", SymbolKind::PartDef, 5),
+                make_symbol("engine", "Vehicle::Car::engine", SymbolKind::PartUsage, 10),
+            ],
+        );
+
         let results = workspace_symbols(&index, None);
         assert_eq!(results.len(), 3);
     }
-    
+
     #[test]
     fn test_workspace_symbols_with_filter() {
         let mut index = SymbolIndex::new();
-        index.add_file(FileId::new(0), vec![
-            make_symbol("Vehicle", "Vehicle", SymbolKind::PartDef, 0),
-            make_symbol("Truck", "Truck", SymbolKind::PartDef, 5),
-            make_symbol("engine", "Vehicle::engine", SymbolKind::PartUsage, 10),
-        ]);
-        
+        index.add_file(
+            FileId::new(0),
+            vec![
+                make_symbol("Vehicle", "Vehicle", SymbolKind::PartDef, 0),
+                make_symbol("Truck", "Truck", SymbolKind::PartDef, 5),
+                make_symbol("engine", "Vehicle::engine", SymbolKind::PartUsage, 10),
+            ],
+        );
+
         // "truck" should only match the Truck definition, not the engine
         let results = workspace_symbols(&index, Some("truck"));
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].name.as_ref(), "Truck");
     }
-    
+
     #[test]
     fn test_document_symbols() {
         let mut index = SymbolIndex::new();
-        index.add_file(FileId::new(0), vec![
-            make_symbol("Vehicle", "Vehicle", SymbolKind::Package, 0),
-            make_symbol("Car", "Vehicle::Car", SymbolKind::PartDef, 5),
-        ]);
-        index.add_file(FileId::new(1), vec![
-            make_symbol("Other", "Other", SymbolKind::Package, 0),
-        ]);
-        
+        index.add_file(
+            FileId::new(0),
+            vec![
+                make_symbol("Vehicle", "Vehicle", SymbolKind::Package, 0),
+                make_symbol("Car", "Vehicle::Car", SymbolKind::PartDef, 5),
+            ],
+        );
+        index.add_file(
+            FileId::new(1),
+            vec![make_symbol("Other", "Other", SymbolKind::Package, 0)],
+        );
+
         let results = document_symbols(&index, FileId::new(0));
         assert_eq!(results.len(), 2);
         assert_eq!(results[0].name.as_ref(), "Vehicle");
         assert_eq!(results[1].name.as_ref(), "Car");
     }
-    
+
     #[test]
     fn test_container_name() {
         let sym = SymbolInfo {
@@ -192,7 +205,7 @@ mod tests {
             end_line: 0,
             end_col: 10,
         };
-        
+
         assert_eq!(sym.container_name(), Some("Vehicle::Car"));
     }
 }

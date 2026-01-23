@@ -9,8 +9,8 @@
 
 use crate::core::Span;
 
-use crate::syntax::sysml::ast::types::FeatureChain;
 use crate::syntax::sysml::ast::parsers::ExtractedRef;
+use crate::syntax::sysml::ast::types::FeatureChain;
 
 /// A normalized relationship target - either a simple name or a feature chain.
 #[derive(Debug, Clone)]
@@ -29,12 +29,12 @@ impl<'a> RelTarget<'a> {
             RelTarget::Chain(chain) => std::borrow::Cow::Owned(chain.as_dotted_string()),
         }
     }
-    
+
     /// Check if this is a chain reference
     pub fn is_chain(&self) -> bool {
         matches!(self, RelTarget::Chain(_))
     }
-    
+
     /// Get the chain if this is a chain reference
     pub fn chain(&self) -> Option<&FeatureChain> {
         match self {
@@ -42,10 +42,10 @@ impl<'a> RelTarget<'a> {
             _ => None,
         }
     }
-    
+
     /// Create a RelTarget from an ExtractedRef (owned version for chains)
     pub fn from_extracted(extracted: &ExtractedRef) -> RelTarget<'static> {
-        let result = match extracted {
+        match extracted {
             ExtractedRef::Simple { name, .. } => {
                 // We need to leak the string to get 'static lifetime
                 // This is acceptable for symbols that live for the duration of the index
@@ -55,8 +55,7 @@ impl<'a> RelTarget<'a> {
                 // Chain parts are used directly in the clone below
                 RelTarget::Chain(chain.clone())
             }
-        };
-        result
+        }
     }
 }
 
@@ -244,13 +243,27 @@ impl<'a> NormalizedElement<'a> {
     pub fn from_sysml(element: &'a crate::syntax::sysml::ast::enums::Element) -> Self {
         use crate::syntax::sysml::ast::enums::Element as SysMLElement;
         match element {
-            SysMLElement::Package(pkg) => NormalizedElement::Package(NormalizedPackage::from_sysml(pkg)),
-            SysMLElement::Definition(def) => NormalizedElement::Definition(NormalizedDefinition::from_sysml(def)),
-            SysMLElement::Usage(usage) => NormalizedElement::Usage(NormalizedUsage::from_sysml(usage)),
-            SysMLElement::Import(import) => NormalizedElement::Import(NormalizedImport::from_sysml(import)),
-            SysMLElement::Alias(alias) => NormalizedElement::Alias(NormalizedAlias::from_sysml(alias)),
-            SysMLElement::Comment(comment) => NormalizedElement::Comment(NormalizedComment::from_sysml(comment)),
-            SysMLElement::Dependency(dep) => NormalizedElement::Dependency(NormalizedDependency::from_sysml(dep)),
+            SysMLElement::Package(pkg) => {
+                NormalizedElement::Package(NormalizedPackage::from_sysml(pkg))
+            }
+            SysMLElement::Definition(def) => {
+                NormalizedElement::Definition(NormalizedDefinition::from_sysml(def))
+            }
+            SysMLElement::Usage(usage) => {
+                NormalizedElement::Usage(NormalizedUsage::from_sysml(usage))
+            }
+            SysMLElement::Import(import) => {
+                NormalizedElement::Import(NormalizedImport::from_sysml(import))
+            }
+            SysMLElement::Alias(alias) => {
+                NormalizedElement::Alias(NormalizedAlias::from_sysml(alias))
+            }
+            SysMLElement::Comment(comment) => {
+                NormalizedElement::Comment(NormalizedComment::from_sysml(comment))
+            }
+            SysMLElement::Dependency(dep) => {
+                NormalizedElement::Dependency(NormalizedDependency::from_sysml(dep))
+            }
             SysMLElement::Filter(_) => {
                 // Skip filters - they don't produce symbols
                 NormalizedElement::Comment(NormalizedComment {
@@ -268,10 +281,18 @@ impl<'a> NormalizedElement<'a> {
     pub fn from_kerml(element: &'a crate::syntax::kerml::ast::enums::Element) -> Self {
         use crate::syntax::kerml::ast::enums::Element as KerMLElement;
         match element {
-            KerMLElement::Package(pkg) => NormalizedElement::Package(NormalizedPackage::from_kerml(pkg)),
-            KerMLElement::Classifier(classifier) => NormalizedElement::Definition(NormalizedDefinition::from_kerml(classifier)),
-            KerMLElement::Feature(feature) => NormalizedElement::Usage(NormalizedUsage::from_kerml(feature)),
-            KerMLElement::Import(import) => NormalizedElement::Import(NormalizedImport::from_kerml(import)),
+            KerMLElement::Package(pkg) => {
+                NormalizedElement::Package(NormalizedPackage::from_kerml(pkg))
+            }
+            KerMLElement::Classifier(classifier) => {
+                NormalizedElement::Definition(NormalizedDefinition::from_kerml(classifier))
+            }
+            KerMLElement::Feature(feature) => {
+                NormalizedElement::Usage(NormalizedUsage::from_kerml(feature))
+            }
+            KerMLElement::Import(import) => {
+                NormalizedElement::Import(NormalizedImport::from_kerml(import))
+            }
             KerMLElement::Comment(_) | KerMLElement::Annotation(_) => {
                 // Skip these - they don't produce symbols currently
                 NormalizedElement::Comment(NormalizedComment {
@@ -292,7 +313,11 @@ impl<'a> NormalizedPackage<'a> {
             name: pkg.name.as_deref(),
             short_name: pkg.short_name.as_deref(),
             span: pkg.span,
-            children: pkg.elements.iter().map(NormalizedElement::from_sysml).collect(),
+            children: pkg
+                .elements
+                .iter()
+                .map(NormalizedElement::from_sysml)
+                .collect(),
         }
     }
 
@@ -301,7 +326,11 @@ impl<'a> NormalizedPackage<'a> {
             name: pkg.name.as_deref(),
             short_name: pkg.short_name.as_deref(),
             span: pkg.span,
-            children: pkg.elements.iter().map(NormalizedElement::from_kerml).collect(),
+            children: pkg
+                .elements
+                .iter()
+                .map(NormalizedElement::from_kerml)
+                .collect(),
         }
     }
 }
@@ -325,7 +354,9 @@ impl<'a> NormalizedDefinition<'a> {
             DefinitionKind::State => NormalizedDefKind::State,
             DefinitionKind::Calculation => NormalizedDefKind::Calculation,
             DefinitionKind::UseCase | DefinitionKind::Case => NormalizedDefKind::UseCase,
-            DefinitionKind::AnalysisCase | DefinitionKind::VerificationCase => NormalizedDefKind::AnalysisCase,
+            DefinitionKind::AnalysisCase | DefinitionKind::VerificationCase => {
+                NormalizedDefKind::AnalysisCase
+            }
             DefinitionKind::Concern => NormalizedDefKind::Concern,
             DefinitionKind::View => NormalizedDefKind::View,
             DefinitionKind::Viewpoint => NormalizedDefKind::Viewpoint,
@@ -340,21 +371,21 @@ impl<'a> NormalizedDefinition<'a> {
             relationships.push(NormalizedRelationship {
                 kind: NormalizedRelKind::Specializes,
                 target: RelTarget::from_extracted(&spec.extracted),
-                span: spec.span()
+                span: spec.span(),
             });
         }
         for redef in &def.relationships.redefines {
             relationships.push(NormalizedRelationship {
                 kind: NormalizedRelKind::Redefines,
                 target: RelTarget::from_extracted(&redef.extracted),
-                span: redef.span()
+                span: redef.span(),
             });
         }
         for subset in &def.relationships.subsets {
             relationships.push(NormalizedRelationship {
                 kind: NormalizedRelKind::Subsets,
                 target: RelTarget::from_extracted(&subset.extracted),
-                span: subset.span()
+                span: subset.span(),
             });
         }
         if let Some(ref typed) = def.relationships.typed_by {
@@ -368,21 +399,23 @@ impl<'a> NormalizedDefinition<'a> {
             relationships.push(NormalizedRelationship {
                 kind: NormalizedRelKind::References,
                 target: RelTarget::from_extracted(&refs.extracted),
-                span: refs.span()
+                span: refs.span(),
             });
         }
 
         // Convert body members to normalized elements
         let mut children = Vec::new();
         let mut doc = None;
-        
+
         for member in &def.body {
             match member {
                 DefinitionMember::Usage(usage) => {
                     children.push(NormalizedElement::Usage(NormalizedUsage::from_sysml(usage)));
                 }
                 DefinitionMember::Import(import) => {
-                    children.push(NormalizedElement::Import(NormalizedImport::from_sysml(import)));
+                    children.push(NormalizedElement::Import(NormalizedImport::from_sysml(
+                        import,
+                    )));
                 }
                 DefinitionMember::Comment(comment) => {
                     // Check for doc comment
@@ -394,7 +427,9 @@ impl<'a> NormalizedDefinition<'a> {
                             }
                         }
                     }
-                    children.push(NormalizedElement::Comment(NormalizedComment::from_sysml(comment)));
+                    children.push(NormalizedElement::Comment(NormalizedComment::from_sysml(
+                        comment,
+                    )));
                 }
             }
         }
@@ -442,10 +477,14 @@ impl<'a> NormalizedDefinition<'a> {
                     });
                 }
                 ClassifierMember::Feature(feature) => {
-                    children.push(NormalizedElement::Usage(NormalizedUsage::from_kerml(&feature)));
+                    children.push(NormalizedElement::Usage(NormalizedUsage::from_kerml(
+                        feature,
+                    )));
                 }
                 ClassifierMember::Import(import) => {
-                    children.push(NormalizedElement::Import(NormalizedImport::from_kerml(&import)));
+                    children.push(NormalizedElement::Import(NormalizedImport::from_kerml(
+                        import,
+                    )));
                 }
                 ClassifierMember::Comment(_) => {} // Skip comments for now
             }
@@ -472,18 +511,28 @@ impl<'a> NormalizedUsage<'a> {
         let kind = match usage.kind {
             UsageKind::Part => NormalizedUsageKind::Part,
             UsageKind::Item => NormalizedUsageKind::Item,
-            UsageKind::Action | UsageKind::PerformAction | UsageKind::SendAction | UsageKind::AcceptAction => NormalizedUsageKind::Action,
+            UsageKind::Action
+            | UsageKind::PerformAction
+            | UsageKind::SendAction
+            | UsageKind::AcceptAction => NormalizedUsageKind::Action,
             UsageKind::Port => NormalizedUsageKind::Port,
             UsageKind::Attribute => NormalizedUsageKind::Attribute,
             UsageKind::Connection => NormalizedUsageKind::Connection,
             UsageKind::Interface => NormalizedUsageKind::Interface,
             UsageKind::Allocation => NormalizedUsageKind::Allocation,
-            UsageKind::Requirement | UsageKind::SatisfyRequirement => NormalizedUsageKind::Requirement,
+            UsageKind::Requirement | UsageKind::SatisfyRequirement => {
+                NormalizedUsageKind::Requirement
+            }
             UsageKind::Constraint => NormalizedUsageKind::Constraint,
-            UsageKind::State | UsageKind::ExhibitState | UsageKind::Transition => NormalizedUsageKind::State,
+            UsageKind::State | UsageKind::ExhibitState | UsageKind::Transition => {
+                NormalizedUsageKind::State
+            }
             UsageKind::Calculation => NormalizedUsageKind::Calculation,
             UsageKind::Reference => NormalizedUsageKind::Reference,
-            UsageKind::Occurrence | UsageKind::Individual | UsageKind::Snapshot | UsageKind::Timeslice => NormalizedUsageKind::Occurrence,
+            UsageKind::Occurrence
+            | UsageKind::Individual
+            | UsageKind::Snapshot
+            | UsageKind::Timeslice => NormalizedUsageKind::Occurrence,
             UsageKind::Flow | UsageKind::Message => NormalizedUsageKind::Flow,
             _ => NormalizedUsageKind::Other,
         };
@@ -508,7 +557,7 @@ impl<'a> NormalizedUsage<'a> {
             relationships.push(NormalizedRelationship {
                 kind: NormalizedRelKind::Subsets,
                 target: RelTarget::from_extracted(&subset.extracted),
-                span: subset.span()
+                span: subset.span(),
             });
         }
         if let Some(ref typed) = usage.relationships.typed_by {
@@ -561,7 +610,7 @@ impl<'a> NormalizedUsage<'a> {
                 span: cross.span(),
             });
         }
-        
+
         // Meta type references (e.g., from "new Type()" instantiation expressions)
         for meta_ref in &usage.relationships.meta {
             relationships.push(NormalizedRelationship {
@@ -570,7 +619,7 @@ impl<'a> NormalizedUsage<'a> {
                 span: meta_ref.span(),
             });
         }
-        
+
         // Expression references - now we can handle chains properly!
         for expr_ref in &usage.expression_refs {
             if expr_ref.is_chain() {
@@ -602,11 +651,13 @@ impl<'a> NormalizedUsage<'a> {
         // Convert body to children
         let mut children = Vec::new();
         let mut doc = None;
-        
+
         for member in &usage.body {
             match member {
                 UsageMember::Usage(nested) => {
-                    children.push(NormalizedElement::Usage(NormalizedUsage::from_sysml(nested)));
+                    children.push(NormalizedElement::Usage(NormalizedUsage::from_sysml(
+                        nested,
+                    )));
                 }
                 UsageMember::Comment(comment) => {
                     // Check for doc comment
@@ -618,7 +669,9 @@ impl<'a> NormalizedUsage<'a> {
                             }
                         }
                     }
-                    children.push(NormalizedElement::Comment(NormalizedComment::from_sysml_comment(&comment)));
+                    children.push(NormalizedElement::Comment(
+                        NormalizedComment::from_sysml_comment(comment),
+                    ));
                 }
             }
         }
@@ -712,12 +765,16 @@ impl<'a> NormalizedAlias<'a> {
 
 impl<'a> NormalizedComment<'a> {
     fn from_sysml(comment: &'a crate::syntax::sysml::ast::types::Comment) -> Self {
-        let about = comment.about.iter().map(|a| NormalizedRelationship {
-            kind: NormalizedRelKind::About,
-            target: RelTarget::Simple(&a.name),
-            span: a.span,
-        }).collect();
-        
+        let about = comment
+            .about
+            .iter()
+            .map(|a| NormalizedRelationship {
+                kind: NormalizedRelKind::About,
+                target: RelTarget::Simple(&a.name),
+                span: a.span,
+            })
+            .collect();
+
         Self {
             name: comment.name.as_deref(),
             short_name: None, // TODO: Add short_name to Comment AST type
@@ -736,7 +793,7 @@ impl<'a> NormalizedDependency<'a> {
     fn from_sysml(dep: &'a crate::syntax::sysml::ast::types::Dependency) -> Self {
         let mut sources = Vec::new();
         let mut targets = Vec::new();
-        
+
         // Convert source refs to relationships
         for src in &dep.sources {
             sources.push(NormalizedRelationship {
@@ -745,7 +802,7 @@ impl<'a> NormalizedDependency<'a> {
                 span: src.span,
             });
         }
-        
+
         // Convert target refs to relationships
         for tgt in &dep.targets {
             targets.push(NormalizedRelationship {
@@ -754,7 +811,7 @@ impl<'a> NormalizedDependency<'a> {
                 span: tgt.span,
             });
         }
-        
+
         Self {
             name: dep.name.as_deref(),
             short_name: None, // TODO: Add short_name to Dependency AST type

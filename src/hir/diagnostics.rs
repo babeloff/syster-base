@@ -5,9 +5,9 @@
 
 use std::sync::Arc;
 
-use crate::base::FileId;
+use super::resolve::{ResolveResult, Resolver, SymbolIndex};
 use super::symbols::{HirSymbol, SymbolKind};
-use super::resolve::{SymbolIndex, Resolver, ResolveResult};
+use crate::base::FileId;
 
 // ============================================================================
 // DIAGNOSTIC TYPES
@@ -145,7 +145,7 @@ pub mod codes {
     pub const INVALID_SPECIALIZATION: &str = "E0006";
     /// Circular dependency.
     pub const CIRCULAR_DEPENDENCY: &str = "E0007";
-    
+
     /// Unused symbol.
     pub const UNUSED_SYMBOL: &str = "W0001";
     /// Deprecated usage.
@@ -190,13 +190,26 @@ impl DiagnosticCollector {
     }
 
     /// Add an ambiguous reference error.
-    pub fn ambiguous_reference(&mut self, file: FileId, symbol: &HirSymbol, name: &str, candidates: &[HirSymbol]) {
-        let candidate_names: Vec<_> = candidates.iter().map(|c| c.qualified_name.as_ref()).collect();
+    pub fn ambiguous_reference(
+        &mut self,
+        file: FileId,
+        symbol: &HirSymbol,
+        name: &str,
+        candidates: &[HirSymbol],
+    ) {
+        let candidate_names: Vec<_> = candidates
+            .iter()
+            .map(|c| c.qualified_name.as_ref())
+            .collect();
         let mut diag = Diagnostic::error(
             file,
             symbol.start_line,
             symbol.start_col,
-            format!("ambiguous reference: '{}' could be: {}", name, candidate_names.join(", ")),
+            format!(
+                "ambiguous reference: '{}' could be: {}",
+                name,
+                candidate_names.join(", ")
+            ),
         )
         .with_span(symbol.end_line, symbol.end_col)
         .with_code(codes::AMBIGUOUS_REFERENCE);
@@ -274,17 +287,25 @@ impl DiagnosticCollector {
 
     /// Get the number of errors.
     pub fn error_count(&self) -> usize {
-        self.diagnostics.iter().filter(|d| d.severity == Severity::Error).count()
+        self.diagnostics
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .count()
     }
 
     /// Get the number of warnings.
     pub fn warning_count(&self) -> usize {
-        self.diagnostics.iter().filter(|d| d.severity == Severity::Warning).count()
+        self.diagnostics
+            .iter()
+            .filter(|d| d.severity == Severity::Warning)
+            .count()
     }
 
     /// Check if there are any errors.
     pub fn has_errors(&self) -> bool {
-        self.diagnostics.iter().any(|d| d.severity == Severity::Error)
+        self.diagnostics
+            .iter()
+            .any(|d| d.severity == Severity::Error)
     }
 
     /// Take all diagnostics, leaving the collector empty.
@@ -323,26 +344,26 @@ impl<'a> SemanticChecker<'a> {
     /// Check all symbols in a file.
     pub fn check_file(&mut self, file: FileId) {
         let symbols = self.index.symbols_in_file(file);
-        
+
         // Pass 1: Check references and collect what's referenced
         for symbol in &symbols {
             self.check_symbol(symbol);
         }
-        
+
         // Pass 2: Check for duplicates within this file
         self.check_duplicates(file, &symbols);
     }
-    
+
     /// Run all checks across the entire index (for workspace-wide diagnostics).
     pub fn check_all(&mut self) {
         // Collect all symbols first
         let all_symbols: Vec<_> = self.index.all_symbols().cloned().collect();
-        
+
         // Check each symbol
         for symbol in &all_symbols {
             self.check_symbol(symbol);
         }
-        
+
         // Check for unused definitions (only meaningful after checking all references)
         // Disabled by default as it can be noisy - uncomment to enable
         // self.check_unused(&all_symbols);
@@ -355,15 +376,15 @@ impl<'a> SemanticChecker<'a> {
         for supertype in &symbol.supertypes {
             self.check_type_reference(symbol, supertype);
         }
-        
+
         // Check type_refs based on their RefKind
         self.check_type_refs(symbol);
     }
-    
+
     /// Check type references in a symbol's body, filtering by RefKind.
     fn check_type_refs(&mut self, symbol: &HirSymbol) {
         use crate::hir::symbols::TypeRefKind;
-        
+
         for type_ref in &symbol.type_refs {
             match type_ref {
                 TypeRefKind::Simple(tr) => {
@@ -372,7 +393,7 @@ impl<'a> SemanticChecker<'a> {
                         self.referenced.insert(resolved.clone());
                         continue;
                     }
-                    
+
                     // Check based on reference kind
                     if tr.kind.is_type_reference() {
                         // Type references resolve via scope walking
@@ -395,7 +416,7 @@ impl<'a> SemanticChecker<'a> {
             }
         }
     }
-    
+
     /// Check a feature reference resolves via inheritance.
     ///
     /// For `attribute mass redefines Vehicle::mass`, we:
@@ -407,25 +428,30 @@ impl<'a> SemanticChecker<'a> {
         if let Some(idx) = target.rfind("::") {
             let prefix = &target[..idx];
             let member = &target[idx + 2..];
-            
+
             // Resolve the prefix (e.g., "Vehicle")
             let scope = Self::extract_scope(&symbol.qualified_name);
             let resolver = Resolver::new(self.index).with_scope(scope);
-            
+
             match resolver.resolve(prefix) {
                 ResolveResult::Found(prefix_sym) => {
                     // Now look for the member in that symbol's scope
-                    if let Some(found) = self.index.find_member_in_scope(&prefix_sym.qualified_name, member) {
+                    if let Some(found) = self
+                        .index
+                        .find_member_in_scope(&prefix_sym.qualified_name, member)
+                    {
                         self.referenced.insert(found.qualified_name.clone());
                     } else if !Self::is_builtin_type(target) {
                         // Member not found in the specified scope
-                        self.collector.undefined_reference(symbol.file, symbol, target);
+                        self.collector
+                            .undefined_reference(symbol.file, symbol, target);
                     }
                 }
                 ResolveResult::NotFound => {
                     // Prefix itself couldn't be resolved
                     if !Self::is_builtin_type(prefix) {
-                        self.collector.undefined_reference(symbol.file, symbol, target);
+                        self.collector
+                            .undefined_reference(symbol.file, symbol, target);
                     }
                 }
                 ResolveResult::Ambiguous(_) => {
@@ -434,32 +460,35 @@ impl<'a> SemanticChecker<'a> {
             }
             return;
         }
-        
+
         // Simple reference like "mass" - look in containing symbol's inheritance chain
         // The containing symbol should have supertypes that define this feature
-        
+
         // First, check if it's defined in the current symbol itself (local redefinition)
         let member_qname = format!("{}::{}", symbol.qualified_name, target);
         if self.index.lookup_qualified(&member_qname).is_some() {
             self.referenced.insert(Arc::from(member_qname));
             return;
         }
-        
+
         // Look in the symbol's supertypes for the feature
         for supertype in &symbol.supertypes {
             // Resolve the supertype
             let scope = Self::extract_scope(&symbol.qualified_name);
             let resolver = Resolver::new(self.index).with_scope(scope);
-            
+
             if let ResolveResult::Found(super_sym) = resolver.resolve(supertype) {
                 // Look for the member in the supertype (recursive search)
-                if let Some(found) = self.index.find_member_in_scope(&super_sym.qualified_name, target) {
+                if let Some(found) = self
+                    .index
+                    .find_member_in_scope(&super_sym.qualified_name, target)
+                {
                     self.referenced.insert(found.qualified_name.clone());
                     return;
                 }
             }
         }
-        
+
         // Still not found - might be in a supertype's supertype, or genuinely undefined
         // Don't report error if it could be from stdlib or unloaded types
         if !Self::is_builtin_type(target) && !symbol.supertypes.is_empty() {
@@ -481,23 +510,25 @@ impl<'a> SemanticChecker<'a> {
                 self.referenced.insert(resolved.qualified_name.clone());
             }
             ResolveResult::Ambiguous(candidates) => {
-                self.collector.ambiguous_reference(symbol.file, symbol, name, &candidates);
+                self.collector
+                    .ambiguous_reference(symbol.file, symbol, name, &candidates);
             }
             ResolveResult::NotFound => {
                 // Only report undefined if it's not a built-in/primitive type
                 // Also skip expression paths that contain dots (like "foo.bar.baz")
                 // These are member access expressions, not type references
                 if !Self::is_builtin_type(name) && !name.contains('.') {
-                    self.collector.undefined_reference(symbol.file, symbol, name);
+                    self.collector
+                        .undefined_reference(symbol.file, symbol, name);
                 }
             }
         }
     }
-    
+
     /// Check for duplicate definitions within a file.
     fn check_duplicates(&mut self, file: FileId, symbols: &[&HirSymbol]) {
         use std::collections::HashMap;
-        
+
         // Group by qualified name
         let mut by_qname: HashMap<&str, Vec<&HirSymbol>> = HashMap::new();
         for symbol in symbols {
@@ -510,7 +541,7 @@ impl<'a> SemanticChecker<'a> {
                 .or_default()
                 .push(symbol);
         }
-        
+
         // Report duplicates
         for (_qname, defs) in by_qname {
             if defs.len() > 1 {
@@ -522,7 +553,7 @@ impl<'a> SemanticChecker<'a> {
             }
         }
     }
-    
+
     /// Check for unused definitions (optional, can be noisy).
     #[allow(dead_code)]
     fn check_unused(&mut self, symbols: &[HirSymbol]) {
@@ -531,26 +562,26 @@ impl<'a> SemanticChecker<'a> {
             if !symbol.kind.is_definition() {
                 continue;
             }
-            
+
             // Skip packages - they're organizational
             if symbol.kind == SymbolKind::Package {
                 continue;
             }
-            
+
             // Skip if referenced
             if self.referenced.contains(&symbol.qualified_name) {
                 continue;
             }
-            
+
             // Skip if it has supertypes (might be used via specialization)
             if !symbol.supertypes.is_empty() {
                 continue;
             }
-            
+
             self.collector.unused_symbol(symbol);
         }
     }
-    
+
     /// Check if a type name is a built-in/primitive that doesn't need resolution.
     ///
     /// This includes:
@@ -560,18 +591,26 @@ impl<'a> SemanticChecker<'a> {
         // Primitive types from KerML
         if matches!(
             name,
-            "Boolean" | "String" | "Integer" | "Real" | "Natural" 
-            | "Positive" | "UnlimitedNatural" | "Complex"
-            | "ScalarValues" | "Base" | "Anything"
+            "Boolean"
+                | "String"
+                | "Integer"
+                | "Real"
+                | "Natural"
+                | "Positive"
+                | "UnlimitedNatural"
+                | "Complex"
+                | "ScalarValues"
+                | "Base"
+                | "Anything"
         ) {
             return true;
         }
-        
+
         // Standard library package prefixes
         // These are defined in the SysML Standard Library
         let stdlib_prefixes = [
-            "ISQ::",           // International System of Quantities
-            "SI::",            // International System of Units
+            "ISQ::", // International System of Quantities
+            "SI::",  // International System of Units
             "USCustomaryUnits::",
             "Quantities::",
             "MeasurementReferences::",
@@ -609,36 +648,69 @@ impl<'a> SemanticChecker<'a> {
             "KerML::",
             "SysML::",
         ];
-        
+
         for prefix in stdlib_prefixes {
             if name.starts_with(prefix) {
                 return true;
             }
         }
-        
+
         // Also handle simple names that are common stdlib types/packages
         // These might be imported with wildcard imports or referenced directly
         let stdlib_types = [
             // Packages (used as namespace references)
-            "ISQ", "SI", "USCustomaryUnits", "Quantities",
+            "ISQ",
+            "SI",
+            "USCustomaryUnits",
+            "Quantities",
             // Quantities
-            "MassValue", "LengthValue", "TimeValue", "VelocityValue", 
-            "AccelerationValue", "ForceValue", "EnergyValue", "PowerValue",
-            "PressureValue", "TemperatureValue", "ElectricCurrentValue",
-            "TorqueValue", "AreaValue", "VolumeValue", "DensityValue",
-            "AngleValue", "AngularVelocityValue", "AngularAccelerationValue",
+            "MassValue",
+            "LengthValue",
+            "TimeValue",
+            "VelocityValue",
+            "AccelerationValue",
+            "ForceValue",
+            "EnergyValue",
+            "PowerValue",
+            "PressureValue",
+            "TemperatureValue",
+            "ElectricCurrentValue",
+            "TorqueValue",
+            "AreaValue",
+            "VolumeValue",
+            "DensityValue",
+            "AngleValue",
+            "AngularVelocityValue",
+            "AngularAccelerationValue",
             // Units
-            "kg", "m", "s", "A", "K", "mol", "cd", "N", "J", "W", "Pa",
+            "kg",
+            "m",
+            "s",
+            "A",
+            "K",
+            "mol",
+            "cd",
+            "N",
+            "J",
+            "W",
+            "Pa",
             // Common types
-            "distancePerVolume", "length", "time", "mass", "power",
+            "distancePerVolume",
+            "length",
+            "time",
+            "mass",
+            "power",
             // Functions and calculations
-            "SampledFunction", "SamplePair",
+            "SampledFunction",
+            "SamplePair",
             // Trade studies
-            "TradeStudy", "evaluationFunction",
+            "TradeStudy",
+            "evaluationFunction",
             // Modeling metadata
-            "mop", "status",
+            "mop",
+            "status",
         ];
-        
+
         stdlib_types.contains(&name)
     }
 
@@ -710,8 +782,8 @@ mod tests {
 
     #[test]
     fn test_diagnostic_with_code() {
-        let diag = Diagnostic::error(FileId::new(0), 0, 0, "test")
-            .with_code(codes::UNDEFINED_REFERENCE);
+        let diag =
+            Diagnostic::error(FileId::new(0), 0, 0, "test").with_code(codes::UNDEFINED_REFERENCE);
         assert_eq!(diag.code.as_deref(), Some("E0001"));
     }
 
@@ -752,15 +824,15 @@ mod tests {
     #[test]
     fn test_semantic_checker_undefined_reference() {
         let mut index = SymbolIndex::new();
-        
+
         // Add a symbol that references a non-existent type
         let mut symbol = make_symbol("wheel", "Vehicle::wheel", SymbolKind::PartUsage, 0);
         symbol.supertypes = vec![Arc::from("NonExistent")];
-        
+
         index.add_file(FileId::new(0), vec![symbol]);
-        
+
         let diagnostics = check_file(&index, FileId::new(0));
-        
+
         assert_eq!(diagnostics.len(), 1);
         assert!(diagnostics[0].message.contains("undefined reference"));
     }
@@ -768,18 +840,18 @@ mod tests {
     #[test]
     fn test_semantic_checker_valid_reference() {
         let mut index = SymbolIndex::new();
-        
+
         // Add the type definition
         let wheel_def = make_symbol("Wheel", "Wheel", SymbolKind::PartDef, 0);
-        
+
         // Add a symbol that references the type
         let mut wheel_usage = make_symbol("wheel", "Vehicle::wheel", SymbolKind::PartUsage, 0);
         wheel_usage.supertypes = vec![Arc::from("Wheel")];
-        
+
         index.add_file(FileId::new(0), vec![wheel_def, wheel_usage]);
-        
+
         let diagnostics = check_file(&index, FileId::new(0));
-        
+
         // Should have no errors - reference resolves
         assert_eq!(diagnostics.len(), 0);
     }

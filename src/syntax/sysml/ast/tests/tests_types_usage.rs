@@ -146,7 +146,10 @@ fn test_usage_with_index() {
     let relationships = Relationships {
         typed_by: Some("PartType".to_string()),
         typed_by_span: None,
-        subsets: vec![SubsettingRel::new(ExtractedRef::simple("basePart".to_string(), None))],
+        subsets: vec![SubsettingRel::new(ExtractedRef::simple(
+            "basePart".to_string(),
+            None,
+        ))],
         ..Relationships::none()
     };
 
@@ -481,15 +484,42 @@ fn test_usage_with_complex_relationships() {
             SubsettingRel::new(ExtractedRef::simple("Subset1".to_string(), None)),
             SubsettingRel::new(ExtractedRef::simple("Subset2".to_string(), None)),
         ],
-        redefines: vec![RedefinitionRel::new(ExtractedRef::simple("Original".to_string(), None))],
-        references: vec![ReferenceRel::new(ExtractedRef::simple("RefTarget".to_string(), None))],
-        crosses: vec![CrossRel::new(ExtractedRef::simple("CrossTarget".to_string(), None))],
-        satisfies: vec![SatisfyRel::new(ExtractedRef::simple("Requirement1".to_string(), None))],
-        performs: vec![PerformRel::new(ExtractedRef::simple("Action1".to_string(), None))],
-        exhibits: vec![ExhibitRel::new(ExtractedRef::simple("State1".to_string(), None))],
-        includes: vec![IncludeRel::new(ExtractedRef::simple("UseCase1".to_string(), None))],
-        asserts: vec![AssertRel::new(ExtractedRef::simple("Constraint1".to_string(), None))],
-        verifies: vec![VerifyRel::new(ExtractedRef::simple("Verification1".to_string(), None))],
+        redefines: vec![RedefinitionRel::new(ExtractedRef::simple(
+            "Original".to_string(),
+            None,
+        ))],
+        references: vec![ReferenceRel::new(ExtractedRef::simple(
+            "RefTarget".to_string(),
+            None,
+        ))],
+        crosses: vec![CrossRel::new(ExtractedRef::simple(
+            "CrossTarget".to_string(),
+            None,
+        ))],
+        satisfies: vec![SatisfyRel::new(ExtractedRef::simple(
+            "Requirement1".to_string(),
+            None,
+        ))],
+        performs: vec![PerformRel::new(ExtractedRef::simple(
+            "Action1".to_string(),
+            None,
+        ))],
+        exhibits: vec![ExhibitRel::new(ExtractedRef::simple(
+            "State1".to_string(),
+            None,
+        ))],
+        includes: vec![IncludeRel::new(ExtractedRef::simple(
+            "UseCase1".to_string(),
+            None,
+        ))],
+        asserts: vec![AssertRel::new(ExtractedRef::simple(
+            "Constraint1".to_string(),
+            None,
+        ))],
+        verifies: vec![VerifyRel::new(ExtractedRef::simple(
+            "Verification1".to_string(),
+            None,
+        ))],
         meta: vec![],
     };
 

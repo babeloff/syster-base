@@ -25,9 +25,8 @@ use crate::hir::{SymbolIndex, extract_symbols_unified};
 use crate::syntax::SyntaxFile;
 
 use super::{
-    CompletionItem, DocumentLink, FoldingRange, GotoResult,
-    HoverResult, InlayHint, ReferenceResult,
-    SelectionRange, SemanticToken, SymbolInfo,
+    CompletionItem, DocumentLink, FoldingRange, GotoResult, HoverResult, InlayHint,
+    ReferenceResult, SelectionRange, SemanticToken, SymbolInfo,
 };
 
 /// Owns all mutable state for the IDE layer.
@@ -71,16 +70,16 @@ impl AnalysisHost {
     pub fn set_file_content(&mut self, path: &str, content: &str) -> Vec<crate::core::ParseError> {
         use crate::syntax::parser::parse_with_result;
         use std::path::Path;
-        
+
         let path_buf = PathBuf::from(path);
-        
+
         // Parse the content
         let result = parse_with_result(content, Path::new(path));
-        
+
         if let Some(syntax_file) = result.content {
             self.files.insert(path_buf, syntax_file);
         }
-        
+
         self.index_dirty = true;
         result.errors
     }
@@ -138,7 +137,7 @@ impl AnalysisHost {
         // Build file ID map from file paths
         self.file_id_map.clear();
         self.file_path_map.clear();
-        
+
         for (i, path) in self.files.keys().enumerate() {
             let path_str = path.to_string_lossy().to_string();
             let file_id = FileId::new(i as u32);
@@ -148,7 +147,7 @@ impl AnalysisHost {
 
         // Build symbol index directly from parsed files
         let mut new_index = SymbolIndex::new();
-        
+
         for (path, syntax_file) in &self.files {
             let path_str = path.to_string_lossy().to_string();
             if let Some(&file_id) = self.file_id_map.get(&path_str) {
@@ -157,10 +156,10 @@ impl AnalysisHost {
                 new_index.add_file(file_id, symbols);
             }
         }
-        
+
         // Build visibility maps for import resolution
         new_index.ensure_visibility_maps();
-        
+
         // Resolve all type references (pre-compute resolved_target)
         new_index.resolve_all_type_refs();
 
@@ -189,8 +188,10 @@ impl AnalysisHost {
     }
 
     /// Get the FileId for a PathBuf, if it exists.
-    pub fn get_file_id_for_path(&self, path: &PathBuf) -> Option<FileId> {
-        self.file_id_map.get(&path.to_string_lossy().to_string()).copied()
+    pub fn get_file_id_for_path(&self, path: &std::path::Path) -> Option<FileId> {
+        self.file_id_map
+            .get(&path.to_string_lossy().to_string())
+            .copied()
     }
 
     /// Get the path for a FileId, if it exists.

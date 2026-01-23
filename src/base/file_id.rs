@@ -71,7 +71,7 @@ mod tests {
     #[test]
     fn test_file_id_hash() {
         use std::collections::HashSet;
-        
+
         let mut set = HashSet::new();
         set.insert(FileId::new(1));
         set.insert(FileId::new(2));

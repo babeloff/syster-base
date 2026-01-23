@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use crate::base::FileId;
-use crate::hir::{SymbolIndex, HirSymbol, SymbolKind, TypeRef};
+use crate::hir::{HirSymbol, SymbolIndex, SymbolKind, TypeRef};
 
 /// Result of a find-references request.
 #[derive(Clone, Debug)]
@@ -146,9 +146,11 @@ fn find_references_for_target(
 
     // Collect all type references to this target (actual textual locations)
     // Use resolved_target for proper scoped matching
-    let type_refs: Vec<_> = index.all_symbols()
+    let type_refs: Vec<_> = index
+        .all_symbols()
         .flat_map(|sym| {
-            sym.type_refs.iter()
+            sym.type_refs
+                .iter()
                 .flat_map(|trk| trk.as_refs()) // Flatten TypeRefKind to &TypeRef
                 .filter(|tr| {
                     // Use effective_target (resolved if available) for accurate scoped matching
@@ -164,11 +166,9 @@ fn find_references_for_target(
     for sym in index.all_symbols() {
         if sym.name.as_ref() == target_name && !sym.kind.is_definition() {
             // Avoid duplicates
-            if !references.iter().any(|r| 
-                r.file == sym.file && 
-                r.start_line == sym.start_line && 
-                r.start_col == sym.start_col
-            ) {
+            if !references.iter().any(|r| {
+                r.file == sym.file && r.start_line == sym.start_line && r.start_col == sym.start_col
+            }) {
                 references.push(Reference::from_symbol(sym, false));
             }
         }
@@ -181,9 +181,14 @@ fn find_references_for_target(
 }
 
 /// Find a type reference at a specific position.
-fn find_type_ref_at_position(index: &SymbolIndex, file: FileId, line: u32, col: u32) -> Option<(Arc<str>, &HirSymbol)> {
+fn find_type_ref_at_position(
+    index: &SymbolIndex,
+    file: FileId,
+    line: u32,
+    col: u32,
+) -> Option<(Arc<str>, &HirSymbol)> {
     let symbols = index.symbols_in_file(file);
-    
+
     for symbol in symbols {
         for type_ref_kind in &symbol.type_refs {
             if type_ref_kind.contains(line, col) {
@@ -194,7 +199,7 @@ fn find_type_ref_at_position(index: &SymbolIndex, file: FileId, line: u32, col: 
             }
         }
     }
-    
+
     None
 }
 
@@ -204,20 +209,21 @@ fn find_definition<'a>(index: &'a SymbolIndex, name: &str) -> Option<&'a HirSymb
     if let Some(def) = index.lookup_definition(name) {
         return Some(def);
     }
-    
+
     // Extract simple name for lookup
     let simple_name = name.rsplit("::").next().unwrap_or(name);
-    
+
     // Try simple name lookup
-    let simple_matches: Vec<_> = index.lookup_simple(simple_name)
+    let simple_matches: Vec<_> = index
+        .lookup_simple(simple_name)
         .into_iter()
         .filter(|s| s.kind.is_definition())
         .collect();
-    
+
     if simple_matches.len() == 1 {
         return Some(simple_matches[0]);
     }
-    
+
     // If name contains ::, try suffix matching on qualified names
     if name.contains("::") {
         let suffix = format!("::{}", name);
@@ -227,16 +233,21 @@ fn find_definition<'a>(index: &'a SymbolIndex, name: &str) -> Option<&'a HirSymb
             }
         }
     }
-    
+
     None
 }
 
 /// Find the symbol at a specific position.
-fn find_symbol_at_position(index: &SymbolIndex, file: FileId, line: u32, col: u32) -> Option<&HirSymbol> {
+fn find_symbol_at_position(
+    index: &SymbolIndex,
+    file: FileId,
+    line: u32,
+    col: u32,
+) -> Option<&HirSymbol> {
     let symbols = index.symbols_in_file(file);
-    
+
     let mut best: Option<&HirSymbol> = None;
-    
+
     for symbol in symbols {
         if contains_position(symbol, line, col) {
             match best {
@@ -249,15 +260,14 @@ fn find_symbol_at_position(index: &SymbolIndex, file: FileId, line: u32, col: u3
             }
         }
     }
-    
+
     best
 }
 
 fn contains_position(symbol: &HirSymbol, line: u32, col: u32) -> bool {
-    let after_start = line > symbol.start_line 
-        || (line == symbol.start_line && col >= symbol.start_col);
-    let before_end = line < symbol.end_line 
-        || (line == symbol.end_line && col <= symbol.end_col);
+    let after_start =
+        line > symbol.start_line || (line == symbol.start_line && col >= symbol.start_col);
+    let before_end = line < symbol.end_line || (line == symbol.end_line && col <= symbol.end_col);
     after_start && before_end
 }
 
@@ -272,7 +282,13 @@ mod tests {
     use super::*;
     use crate::hir::RefKind;
 
-    fn make_symbol(name: &str, qualified: &str, kind: SymbolKind, file: u32, line: u32) -> HirSymbol {
+    fn make_symbol(
+        name: &str,
+        qualified: &str,
+        kind: SymbolKind,
+        file: u32,
+        line: u32,
+    ) -> HirSymbol {
         HirSymbol {
             name: Arc::from(name),
             short_name: None,
@@ -297,27 +313,41 @@ mod tests {
     #[test]
     fn test_find_references_from_definition() {
         use crate::hir::TypeRefKind;
-        
+
         let mut index = SymbolIndex::new();
-        
+
         // Definition
         let engine_def = make_symbol("Engine", "Engine", SymbolKind::PartDef, 0, 1);
-        
+
         // Usages with type_refs (this is how references are found)
         let mut engine_usage1 = make_symbol("engine", "Car::engine", SymbolKind::PartUsage, 0, 10);
         engine_usage1.supertypes = vec![Arc::from("Engine")];
-        engine_usage1.type_refs = vec![TypeRefKind::Simple(TypeRef::new("Engine", RefKind::TypedBy, 10, 15, 10, 21))];
-        
+        engine_usage1.type_refs = vec![TypeRefKind::Simple(TypeRef::new(
+            "Engine",
+            RefKind::TypedBy,
+            10,
+            15,
+            10,
+            21,
+        ))];
+
         let mut engine_usage2 = make_symbol("motor", "Truck::motor", SymbolKind::PartUsage, 1, 5);
         engine_usage2.supertypes = vec![Arc::from("Engine")];
-        engine_usage2.type_refs = vec![TypeRefKind::Simple(TypeRef::new("Engine", RefKind::TypedBy, 5, 12, 5, 18))];
-        
+        engine_usage2.type_refs = vec![TypeRefKind::Simple(TypeRef::new(
+            "Engine",
+            RefKind::TypedBy,
+            5,
+            12,
+            5,
+            18,
+        ))];
+
         index.add_file(FileId::new(0), vec![engine_def, engine_usage1]);
         index.add_file(FileId::new(1), vec![engine_usage2]);
 
         // Click on the definition
         let result = find_references(&index, FileId::new(0), 1, 5, true);
-        
+
         // Should find: definition + 2 type_refs
         assert_eq!(result.len(), 3);
         assert!(result.references.iter().any(|r| r.is_definition));
@@ -326,34 +356,40 @@ mod tests {
     #[test]
     fn test_find_references_from_usage() {
         let mut index = SymbolIndex::new();
-        
+
         let wheel_def = make_symbol("Wheel", "Wheel", SymbolKind::PartDef, 0, 1);
-        
-        let mut wheel_usage = make_symbol("frontWheel", "Car::frontWheel", SymbolKind::PartUsage, 0, 10);
+
+        let mut wheel_usage = make_symbol(
+            "frontWheel",
+            "Car::frontWheel",
+            SymbolKind::PartUsage,
+            0,
+            10,
+        );
         wheel_usage.supertypes = vec![Arc::from("Wheel")];
-        
+
         index.add_file(FileId::new(0), vec![wheel_def, wheel_usage]);
 
         // Click on the usage
         let result = find_references(&index, FileId::new(0), 10, 5, true);
-        
+
         // Should find definition + the usage
-        assert!(result.len() >= 1);
+        assert!(!result.is_empty());
     }
 
     #[test]
     fn test_find_references_exclude_declaration() {
         let mut index = SymbolIndex::new();
-        
+
         let part_def = make_symbol("Part", "Part", SymbolKind::PartDef, 0, 1);
-        
+
         let mut usage = make_symbol("myPart", "myPart", SymbolKind::PartUsage, 0, 10);
         usage.supertypes = vec![Arc::from("Part")];
-        
+
         index.add_file(FileId::new(0), vec![part_def, usage]);
 
         let result = find_references(&index, FileId::new(0), 1, 5, false);
-        
+
         // Should NOT include the definition
         assert!(result.references.iter().all(|r| !r.is_definition));
     }

@@ -42,10 +42,17 @@ mod resolve;
 mod source;
 mod symbols;
 
-pub use db::{RootDatabase, FileText, SourceRootInput, ParseResult, parse_file, file_symbols, file_symbols_from_text};
-pub use diagnostics::{Diagnostic, DiagnosticCollector, Severity, RelatedInfo, SemanticChecker, check_file};
+pub use db::{
+    FileText, ParseResult, RootDatabase, SourceRootInput, file_symbols, file_symbols_from_text,
+    parse_file,
+};
+pub use diagnostics::{
+    Diagnostic, DiagnosticCollector, RelatedInfo, SemanticChecker, Severity, check_file,
+};
 pub use ids::{DefId, LocalDefId};
 pub use input::SourceRoot;
-pub use resolve::{SymbolIndex, Resolver, ResolveResult};
+pub use resolve::{ResolveResult, Resolver, SymbolIndex};
 pub use source::FileSet;
-pub use symbols::{HirSymbol, SymbolKind, TypeRef, TypeRefKind, TypeRefChain, RefKind, extract_symbols_unified};
+pub use symbols::{
+    HirSymbol, RefKind, SymbolKind, TypeRef, TypeRefChain, TypeRefKind, extract_symbols_unified,
+};

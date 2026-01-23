@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use crate::base::FileId;
-use crate::hir::{SymbolIndex, Resolver, ResolveResult, HirSymbol, SymbolKind, TypeRef, RefKind};
+use crate::hir::{HirSymbol, RefKind, ResolveResult, Resolver, SymbolIndex, SymbolKind, TypeRef};
 
 /// Result of a go-to-definition request.
 #[derive(Clone, Debug)]
@@ -15,12 +15,16 @@ pub struct GotoResult {
 impl GotoResult {
     /// Create an empty result (no targets found).
     pub fn empty() -> Self {
-        Self { targets: Vec::new() }
+        Self {
+            targets: Vec::new(),
+        }
     }
 
     /// Create a result with a single target.
     pub fn single(target: GotoTarget) -> Self {
-        Self { targets: vec![target] }
+        Self {
+            targets: vec![target],
+        }
     }
 
     /// Create a result with multiple targets.
@@ -77,18 +81,15 @@ impl From<&HirSymbol> for GotoTarget {
 ///
 /// # Returns
 /// The location(s) of the definition, or empty if not found.
-pub fn goto_definition(
-    index: &SymbolIndex,
-    file: FileId,
-    line: u32,
-    col: u32,
-) -> GotoResult {
+pub fn goto_definition(index: &SymbolIndex, file: FileId, line: u32, col: u32) -> GotoResult {
     // First, check if cursor is on a type reference
-    if let Some((target_name, type_ref, source_symbol)) = find_type_ref_at_position(index, file, line, col) {
+    if let Some((target_name, type_ref, source_symbol)) =
+        find_type_ref_at_position(index, file, line, col)
+    {
         // Build resolver with scope from the source symbol
         let scope = extract_scope(&source_symbol.qualified_name);
         let resolver = Resolver::new(index).with_scope(scope);
-        
+
         // For Expression refs (like unit bracket [spatialCF]), we want to find the symbol
         // even if it's a usage, not just definitions. For other refs (TypedBy, etc.),
         // we only want definitions.
@@ -97,7 +98,7 @@ pub fn goto_definition(
         } else {
             resolver.resolve_type(&target_name)
         };
-        
+
         match resolve_result {
             ResolveResult::Found(def) => {
                 return GotoResult::single(GotoTarget::from(&def));
@@ -129,11 +130,11 @@ pub fn goto_definition(
     // For usages, find the definition via type reference
     if !symbol.supertypes.is_empty() {
         let type_name = &symbol.supertypes[0];
-        
+
         // Build resolver with scope
         let scope = extract_scope(&symbol.qualified_name);
         let resolver = Resolver::new(index).with_scope(scope);
-        
+
         match resolver.resolve_type(type_name) {
             ResolveResult::Found(def) => {
                 return GotoResult::single(GotoTarget::from(&def));
@@ -157,9 +158,14 @@ pub fn goto_definition(
 /// Find a type reference at a specific position in a file.
 ///
 /// Returns the target type name, the TypeRef, and the symbol containing the reference.
-fn find_type_ref_at_position(index: &SymbolIndex, file: FileId, line: u32, col: u32) -> Option<(Arc<str>, &TypeRef, &HirSymbol)> {
+fn find_type_ref_at_position(
+    index: &SymbolIndex,
+    file: FileId,
+    line: u32,
+    col: u32,
+) -> Option<(Arc<str>, &TypeRef, &HirSymbol)> {
     let symbols = index.symbols_in_file(file);
-    
+
     for symbol in symbols {
         for type_ref_kind in &symbol.type_refs {
             if type_ref_kind.contains(line, col) {
@@ -170,17 +176,22 @@ fn find_type_ref_at_position(index: &SymbolIndex, file: FileId, line: u32, col: 
             }
         }
     }
-    
+
     None
 }
 
 /// Find the symbol at a specific position in a file.
-fn find_symbol_at_position(index: &SymbolIndex, file: FileId, line: u32, col: u32) -> Option<&HirSymbol> {
+fn find_symbol_at_position(
+    index: &SymbolIndex,
+    file: FileId,
+    line: u32,
+    col: u32,
+) -> Option<&HirSymbol> {
     let symbols = index.symbols_in_file(file);
-    
+
     // Find smallest symbol containing the position
     let mut best: Option<&HirSymbol> = None;
-    
+
     for symbol in symbols {
         if contains_position(symbol, line, col) {
             match best {
@@ -194,20 +205,19 @@ fn find_symbol_at_position(index: &SymbolIndex, file: FileId, line: u32, col: u3
             }
         }
     }
-    
+
     best
 }
 
 /// Check if a symbol's range contains a position.
 fn contains_position(symbol: &HirSymbol, line: u32, col: u32) -> bool {
     // Check if position is after start
-    let after_start = line > symbol.start_line 
-        || (line == symbol.start_line && col >= symbol.start_col);
-    
+    let after_start =
+        line > symbol.start_line || (line == symbol.start_line && col >= symbol.start_col);
+
     // Check if position is before end
-    let before_end = line < symbol.end_line 
-        || (line == symbol.end_line && col <= symbol.end_col);
-    
+    let before_end = line < symbol.end_line || (line == symbol.end_line && col <= symbol.end_col);
+
     after_start && before_end
 }
 
@@ -231,7 +241,13 @@ fn extract_scope(qualified_name: &str) -> String {
 mod tests {
     use super::*;
 
-    fn make_symbol(name: &str, qualified: &str, kind: SymbolKind, file: u32, line: u32) -> HirSymbol {
+    fn make_symbol(
+        name: &str,
+        qualified: &str,
+        kind: SymbolKind,
+        file: u32,
+        line: u32,
+    ) -> HirSymbol {
         HirSymbol {
             name: Arc::from(name),
             short_name: None,
@@ -260,7 +276,7 @@ mod tests {
         index.add_file(FileId::new(0), vec![def]);
 
         let result = goto_definition(&index, FileId::new(0), 5, 5);
-        
+
         assert!(!result.is_empty());
         assert_eq!(result.targets.len(), 1);
         assert_eq!(result.targets[0].name.as_ref(), "Car");
@@ -269,19 +285,19 @@ mod tests {
     #[test]
     fn test_goto_definition_from_usage() {
         let mut index = SymbolIndex::new();
-        
+
         // Definition
         let def = make_symbol("Engine", "Engine", SymbolKind::PartDef, 0, 1);
-        
+
         // Usage with type reference
         let mut usage = make_symbol("engine", "Car::engine", SymbolKind::PartUsage, 0, 10);
         usage.supertypes = vec![Arc::from("Engine")];
-        
+
         index.add_file(FileId::new(0), vec![def, usage]);
 
         // Click on the usage
         let result = goto_definition(&index, FileId::new(0), 10, 5);
-        
+
         assert!(!result.is_empty());
         assert_eq!(result.targets[0].name.as_ref(), "Engine");
         assert_eq!(result.targets[0].start_line, 1); // Goes to definition
@@ -289,23 +305,30 @@ mod tests {
 
     #[test]
     fn test_goto_definition_from_type_ref() {
-        use crate::hir::{TypeRefKind, TypeRef, RefKind};
-        
+        use crate::hir::{RefKind, TypeRef, TypeRefKind};
+
         let mut index = SymbolIndex::new();
-        
+
         // Definition at line 1
         let def = make_symbol("Engine", "Engine", SymbolKind::PartDef, 0, 1);
-        
+
         // Usage at line 10, with type reference at columns 15-21 (where "Engine" appears)
         let mut usage = make_symbol("engine", "Car::engine", SymbolKind::PartUsage, 0, 10);
         usage.supertypes = vec![Arc::from("Engine")];
-        usage.type_refs = vec![TypeRefKind::Simple(TypeRef::new("Engine", RefKind::TypedBy, 10, 15, 10, 21))];
-        
+        usage.type_refs = vec![TypeRefKind::Simple(TypeRef::new(
+            "Engine",
+            RefKind::TypedBy,
+            10,
+            15,
+            10,
+            21,
+        ))];
+
         index.add_file(FileId::new(0), vec![def, usage]);
 
         // Click on the type reference "Engine" (at column 17)
         let result = goto_definition(&index, FileId::new(0), 10, 17);
-        
+
         assert!(!result.is_empty());
         assert_eq!(result.targets[0].name.as_ref(), "Engine");
         assert_eq!(result.targets[0].start_line, 1); // Goes to definition

@@ -1,9 +1,9 @@
 //! File set management for tracking source files.
 
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use indexmap::IndexMap;
 use parking_lot::RwLock;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use crate::base::FileId;
 
@@ -49,7 +49,7 @@ impl FileSet {
 
         // Slow path: write lock
         let mut inner = self.inner.write();
-        
+
         // Double-check
         if let Some(&id) = inner.path_to_id.get(path) {
             return id;
@@ -109,11 +109,11 @@ mod tests {
     #[test]
     fn test_file_set_id_assignment() {
         let files = FileSet::new();
-        
+
         let id1 = files.file_id(Path::new("/a.sysml"));
         let id2 = files.file_id(Path::new("/b.sysml"));
         let id3 = files.file_id(Path::new("/a.sysml")); // same as id1
-        
+
         assert_ne!(id1, id2);
         assert_eq!(id1, id3); // stable ID for same path
     }
@@ -122,11 +122,11 @@ mod tests {
     fn test_file_set_contents() {
         let files = FileSet::new();
         let id = files.file_id(Path::new("/test.sysml"));
-        
+
         assert!(files.contents(id).is_none());
-        
+
         files.set_contents(id, "part def Foo;");
-        
+
         assert_eq!(files.contents(id).as_deref(), Some("part def Foo;"));
     }
 
@@ -135,7 +135,7 @@ mod tests {
         let files = FileSet::new();
         let path = Path::new("/test.sysml");
         let id = files.file_id(path);
-        
+
         assert_eq!(files.path(id).as_deref(), Some(path));
     }
 }

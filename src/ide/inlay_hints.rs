@@ -69,10 +69,10 @@ pub fn inlay_hints(
         if symbol.kind.is_usage() && !symbol.supertypes.is_empty() {
             // Show the primary type (first supertype, which is typically the typed_by)
             let type_name = &symbol.supertypes[0];
-            
+
             // Position hint after the symbol name
             let hint_col = symbol.start_col + symbol.name.len() as u32;
-            
+
             hints.push(InlayHint {
                 line: symbol.start_line,
                 col: hint_col,

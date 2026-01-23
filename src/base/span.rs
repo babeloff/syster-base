@@ -69,25 +69,26 @@ impl LineIndex {
     /// Build a line index from source text.
     pub fn new(text: &str) -> Self {
         let mut line_starts = vec![TextSize::from(0)];
-        
+
         for (offset, c) in text.char_indices() {
             if c == '\n' {
                 line_starts.push(TextSize::from((offset + 1) as u32));
             }
         }
-        
+
         Self { line_starts }
     }
 
     /// Convert a byte offset to a line/column position.
     pub fn line_col(&self, offset: TextSize) -> LineCol {
-        let line = self.line_starts
+        let line = self
+            .line_starts
             .partition_point(|&start| start <= offset)
             .saturating_sub(1);
-        
+
         let line_start = self.line_starts[line];
         let col = offset - line_start;
-        
+
         LineCol {
             line: line as u32,
             col: col.into(),
@@ -134,7 +135,7 @@ mod tests {
     #[test]
     fn test_line_index_single_line() {
         let index = LineIndex::new("hello world");
-        
+
         assert_eq!(index.line_col(TextSize::from(0)), LineCol::new(0, 0));
         assert_eq!(index.line_col(TextSize::from(5)), LineCol::new(0, 5));
     }
@@ -142,7 +143,7 @@ mod tests {
     #[test]
     fn test_line_index_multi_line() {
         let index = LineIndex::new("hello\nworld\n!");
-        
+
         assert_eq!(index.line_col(TextSize::from(0)), LineCol::new(0, 0));
         assert_eq!(index.line_col(TextSize::from(5)), LineCol::new(0, 5));
         assert_eq!(index.line_col(TextSize::from(6)), LineCol::new(1, 0));
@@ -153,7 +154,7 @@ mod tests {
     #[test]
     fn test_line_index_offset() {
         let index = LineIndex::new("hello\nworld");
-        
+
         assert_eq!(index.offset(LineCol::new(0, 0)), Some(TextSize::from(0)));
         assert_eq!(index.offset(LineCol::new(1, 0)), Some(TextSize::from(6)));
         assert_eq!(index.offset(LineCol::new(1, 3)), Some(TextSize::from(9)));

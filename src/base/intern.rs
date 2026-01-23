@@ -73,7 +73,7 @@ impl Interner {
 
         // Slow path: need to insert (write lock)
         let mut inner = self.inner.write();
-        
+
         // Double-check after acquiring write lock
         if let Some(&index) = inner.map.get(s) {
             return Name::from_raw(index);
@@ -83,7 +83,7 @@ impl Interner {
         let index = inner.strings.len() as u32;
         inner.strings.push(smol.clone());
         inner.map.insert(smol, index);
-        
+
         Name::from_raw(index)
     }
 
@@ -130,10 +130,10 @@ mod tests {
     #[test]
     fn test_intern_same_string() {
         let interner = Interner::new();
-        
+
         let a = interner.intern("hello");
         let b = interner.intern("hello");
-        
+
         assert_eq!(a, b);
         assert_eq!(interner.len(), 1);
     }
@@ -141,10 +141,10 @@ mod tests {
     #[test]
     fn test_intern_different_strings() {
         let interner = Interner::new();
-        
+
         let a = interner.intern("hello");
         let b = interner.intern("world");
-        
+
         assert_ne!(a, b);
         assert_eq!(interner.len(), 2);
     }
@@ -152,10 +152,10 @@ mod tests {
     #[test]
     fn test_lookup() {
         let interner = Interner::new();
-        
+
         let name = interner.intern("test");
         let s = interner.get(name);
-        
+
         assert_eq!(s.as_str(), "test");
     }
 

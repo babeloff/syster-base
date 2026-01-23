@@ -1,8 +1,8 @@
 //! Input types for the Salsa database.
 
-use std::sync::Arc;
-use indexmap::IndexMap;
 use crate::base::FileId;
+use indexmap::IndexMap;
+use std::sync::Arc;
 
 /// The set of all source files in the workspace.
 ///
@@ -63,13 +63,13 @@ mod tests {
     #[test]
     fn test_source_root_basic() {
         let mut root = SourceRoot::new();
-        
+
         let file1 = FileId::new(0);
         let file2 = FileId::new(1);
-        
+
         root.insert(file1, "/path/to/a.sysml");
         root.insert(file2, "/path/to/b.sysml");
-        
+
         assert_eq!(root.len(), 2);
         assert!(root.contains(file1));
         assert_eq!(root.path(file1), Some("/path/to/a.sysml"));
@@ -79,10 +79,10 @@ mod tests {
     fn test_source_root_remove() {
         let mut root = SourceRoot::new();
         let file = FileId::new(0);
-        
+
         root.insert(file, "/path/to/a.sysml");
         assert!(root.contains(file));
-        
+
         root.remove(file);
         assert!(!root.contains(file));
     }

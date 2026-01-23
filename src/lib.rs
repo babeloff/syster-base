@@ -53,4 +53,4 @@ pub mod syntax;
 pub use parser::keywords;
 
 // Re-export new foundation types
-pub use base::{FileId, TextRange, TextSize, LineCol, LineIndex, Name, Interner};
+pub use base::{FileId, Interner, LineCol, LineIndex, Name, TextRange, TextSize};

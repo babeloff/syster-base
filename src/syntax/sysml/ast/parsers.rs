@@ -11,8 +11,8 @@ use super::types::{
     SpecializationRel, SubsettingRel, SysMLFile, Usage,
 };
 use super::utils::{
-    extract_full_identification, extract_name_from_identification, find_in, is_body_rule, is_definition_rule, is_usage_rule,
-    to_def_kind, to_usage_kind,
+    extract_full_identification, extract_name_from_identification, find_in, is_body_rule,
+    is_definition_rule, is_usage_rule, to_def_kind, to_usage_kind,
 };
 use crate::core::Span;
 use crate::parser::sysml::Rule;
@@ -152,10 +152,7 @@ pub(super) fn ref_with_span_from(pair: &Pair<Rule>) -> Option<(String, Span)> {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ExtractedRef {
     /// A simple reference (identifier, qualified name)
-    Simple {
-        name: String,
-        span: Option<Span>,
-    },
+    Simple { name: String, span: Option<Span> },
     /// A feature chain like `providePower.distributeTorque`
     Chain(super::types::FeatureChain),
 }
@@ -174,12 +171,12 @@ impl ExtractedRef {
     pub fn simple(name: String, span: Option<Span>) -> Self {
         ExtractedRef::Simple { name, span }
     }
-    
+
     /// Create a chain reference
     pub fn chain(chain: super::types::FeatureChain) -> Self {
         ExtractedRef::Chain(chain)
     }
-    
+
     /// Get the name (for simple refs) or dotted string (for chains)
     /// For backwards compatibility
     pub fn name(&self) -> String {
@@ -188,7 +185,7 @@ impl ExtractedRef {
             ExtractedRef::Chain(chain) => chain.as_dotted_string(),
         }
     }
-    
+
     /// Get the span
     pub fn span(&self) -> Option<Span> {
         match self {
@@ -196,12 +193,12 @@ impl ExtractedRef {
             ExtractedRef::Chain(chain) => chain.span,
         }
     }
-    
+
     /// Check if this is a chain
     pub fn is_chain(&self) -> bool {
         matches!(self, ExtractedRef::Chain(_))
     }
-    
+
     /// Get chain parts if this is a chain
     pub fn chain_parts(&self) -> Option<&[super::types::FeatureChainPart]> {
         match self {
@@ -209,7 +206,7 @@ impl ExtractedRef {
             _ => None,
         }
     }
-    
+
     /// Legacy: get chain_context as (parts, index) - always returns index 0
     /// DEPRECATED: Use chain_parts() instead
     pub fn chain_context(&self) -> Option<(Vec<String>, usize)> {
@@ -237,11 +234,10 @@ fn collect_refs_recursive(pair: &Pair<Rule>, refs: &mut Vec<ExtractedRef>) {
             let raw = pair.as_str().trim();
             let base_span = pair.as_span();
             let (base_line, base_col) = base_span.start_pos().line_col();
-            
 
             let mut parts = Vec::new();
             let mut offset = 0;
-            
+
             for part in raw.split('.') {
                 let part = part.trim();
                 if part.is_empty() {
@@ -268,7 +264,7 @@ fn collect_refs_recursive(pair: &Pair<Rule>, refs: &mut Vec<ExtractedRef>) {
                 // Move offset past this part and the dot separator
                 offset = part_end + 1; // +1 for the '.'
             }
-            
+
             if !parts.is_empty() {
                 refs.push(ExtractedRef::Chain(super::types::FeatureChain {
                     parts,
@@ -297,7 +293,7 @@ fn collect_refs_recursive(pair: &Pair<Rule>, refs: &mut Vec<ExtractedRef>) {
                 if raw_parts.len() > 1 {
                     let mut parts = Vec::new();
                     let mut offset = 0;
-                    
+
                     for part in raw.split('.') {
                         let part = part.trim();
                         if part.is_empty() || part.contains('(') {
@@ -322,7 +318,7 @@ fn collect_refs_recursive(pair: &Pair<Rule>, refs: &mut Vec<ExtractedRef>) {
 
                         offset = part_end + 1;
                     }
-                    
+
                     if parts.len() > 1 {
                         refs.push(ExtractedRef::Chain(super::types::FeatureChain {
                             parts,
@@ -354,7 +350,10 @@ fn collect_refs_recursive(pair: &Pair<Rule>, refs: &mut Vec<ExtractedRef>) {
                 })
                 .collect();
             if !parts.is_empty() {
-                refs.push(ExtractedRef::simple(parts.join("::"), Some(to_span(pair.as_span()))));
+                refs.push(ExtractedRef::simple(
+                    parts.join("::"),
+                    Some(to_span(pair.as_span())),
+                ));
             } else {
                 // Fallback for atomic rules: use the raw string but strip quotes if needed
                 let raw = pair.as_str().trim();
@@ -528,18 +527,20 @@ fn collect_expression_refs_recursive(
                         span: Some(*span),
                     })
                     .collect();
-                
+
                 // Calculate overall span
                 let first_span = chain_parts_raw.first().map(|(_, s)| *s);
                 let last_span = chain_parts_raw.last().map(|(_, s)| *s);
                 let overall_span = match (first_span, last_span) {
                     (Some(f), Some(l)) => Some(Span::from_coords(
-                        f.start.line, f.start.column,
-                        l.end.line, l.end.column,
+                        f.start.line,
+                        f.start.column,
+                        l.end.line,
+                        l.end.column,
                     )),
                     _ => None,
                 };
-                
+
                 refs.push(ExtractedRef::Chain(super::types::FeatureChain {
                     parts,
                     span: overall_span,
@@ -685,7 +686,9 @@ fn visit_pair(pair: &Pair<Rule>, ctx: &mut ParseContext, depth: usize, in_body: 
             for p in pair.clone().into_inner() {
                 if p.as_rule() == Rule::owned_subclassification {
                     for extracted in all_refs_with_spans_from(&p) {
-                        ctx.relationships.specializes.push(SpecializationRel::new(extracted));
+                        ctx.relationships
+                            .specializes
+                            .push(SpecializationRel::new(extracted));
                     }
                 }
             }
@@ -695,7 +698,9 @@ fn visit_pair(pair: &Pair<Rule>, ctx: &mut ParseContext, depth: usize, in_body: 
             for p in pair.clone().into_inner() {
                 if p.as_rule() == Rule::owned_subclassification {
                     for extracted in all_refs_with_spans_from(&p) {
-                        ctx.relationships.redefines.push(RedefinitionRel::new(extracted));
+                        ctx.relationships
+                            .redefines
+                            .push(RedefinitionRel::new(extracted));
                     }
                 }
             }
@@ -712,17 +717,23 @@ fn visit_pair(pair: &Pair<Rule>, ctx: &mut ParseContext, depth: usize, in_body: 
                     }
                     Rule::subsettings => {
                         for extracted in all_refs_with_spans_from(&spec) {
-                            ctx.relationships.subsets.push(SubsettingRel::new(extracted));
+                            ctx.relationships
+                                .subsets
+                                .push(SubsettingRel::new(extracted));
                         }
                     }
                     Rule::redefinitions => {
                         for extracted in all_refs_with_spans_from(&spec) {
-                            ctx.relationships.redefines.push(RedefinitionRel::new(extracted));
+                            ctx.relationships
+                                .redefines
+                                .push(RedefinitionRel::new(extracted));
                         }
                     }
                     Rule::references => {
                         for extracted in all_refs_with_spans_from(&spec) {
-                            ctx.relationships.references.push(ReferenceRel::new(extracted));
+                            ctx.relationships
+                                .references
+                                .push(ReferenceRel::new(extracted));
                         }
                     }
                     Rule::crosses => {
@@ -754,7 +765,9 @@ fn visit_pair(pair: &Pair<Rule>, ctx: &mut ParseContext, depth: usize, in_body: 
         // This captures the reference as a subsetting relationship
         Rule::owned_reference_subsetting => {
             for extracted in all_refs_with_spans_from(pair) {
-                ctx.relationships.subsets.push(SubsettingRel::new(extracted));
+                ctx.relationships
+                    .subsets
+                    .push(SubsettingRel::new(extracted));
             }
         }
 
@@ -841,9 +854,10 @@ fn visit_pair(pair: &Pair<Rule>, ctx: &mut ParseContext, depth: usize, in_body: 
                         // Extract properly as ExtractedRef to preserve chain structure
                         for extracted in all_refs_with_spans_from(inner) {
                             if has_references_op {
-                                nested_usage.relationships.references.push(
-                                    super::types::ReferenceRel::new(extracted),
-                                );
+                                nested_usage
+                                    .relationships
+                                    .references
+                                    .push(super::types::ReferenceRel::new(extracted));
                             } else if has_crosses_op {
                                 nested_usage
                                     .relationships
@@ -1013,7 +1027,8 @@ fn visit_pair(pair: &Pair<Rule>, ctx: &mut ParseContext, depth: usize, in_body: 
                     } else if let Some((type_name, type_span)) = payload_type {
                         // No name but we have a type - this is a bare type reference like "accept MySignal"
                         // Add the type as an expression reference so it can be resolved
-                        ctx.expression_refs.push(ExtractedRef::simple(type_name, Some(type_span)));
+                        ctx.expression_refs
+                            .push(ExtractedRef::simple(type_name, Some(type_span)));
                     }
                 } else if inner.as_rule() == Rule::accept_parameter_part {
                     // Recurse into accept_parameter_part
@@ -1569,10 +1584,10 @@ pub fn parse_definition(pair: Pair<Rule>) -> Result<Definition, ParseError> {
 fn parse_usage_with_kind(pair: Pair<Rule>, kind: UsageKind) -> Usage {
     let mut ctx = ParseContext::new();
     visit_pair(&pair, &mut ctx, 0, false);
-    
+
     // For anonymous usages with redefines (like perform/satisfy/exhibit),
     // derive the name from the redefines target.
-    // E.g., "perform ActionTree::providePower redefines providePower;" 
+    // E.g., "perform ActionTree::providePower redefines providePower;"
     // should create a symbol named "providePower"
     let name = ctx.name.or_else(|| {
         ctx.relationships.redefines.first().map(|r| {
@@ -1588,12 +1603,12 @@ fn parse_usage_with_kind(pair: Pair<Rule>, kind: UsageKind) -> Usage {
             simple_name.to_string()
         })
     });
-    
+
     // For anonymous usages, use the redefines span as the symbol span
     // This ensures hover/go-to-definition works for `:>> name` syntax
-    let span = ctx.name_span.or_else(|| {
-        ctx.relationships.redefines.first().and_then(|r| r.span())
-    });
+    let span = ctx
+        .name_span
+        .or_else(|| ctx.relationships.redefines.first().and_then(|r| r.span()));
 
     Usage {
         kind,
@@ -1630,7 +1645,8 @@ pub fn parse_package(pairs: &mut Pairs<Rule>) -> Result<Package, ParseError> {
         match pair.as_rule() {
             Rule::package_declaration => {
                 if let Some(p) = find_in(&pair, Rule::identification) {
-                    let (extracted_short, short_span, extracted_name, extracted_span) = extract_full_identification(p);
+                    let (extracted_short, short_span, extracted_name, extracted_span) =
+                        extract_full_identification(p);
                     short_name = extracted_short;
                     // If there's a regular name, use it as the primary name
                     // Otherwise fall back to short_name as the name (SysML behavior)
@@ -2038,7 +2054,8 @@ mod tests {
             "Expected 1 specialization"
         );
         assert_eq!(
-            def.relationships.specializes[0].target(), "SemanticMetadata",
+            def.relationships.specializes[0].target(),
+            "SemanticMetadata",
             "Expected specialization target 'SemanticMetadata'"
         );
     }
@@ -2064,7 +2081,8 @@ mod tests {
             "Expected 1 redefinition"
         );
         assert_eq!(
-            usage.relationships.redefines[0].target(), "packet header",
+            usage.relationships.redefines[0].target(),
+            "packet header",
             "Redefines target should not have quotes"
         );
     }
@@ -2235,7 +2253,8 @@ mod tests {
             usage.relationships.meta
         );
         assert_eq!(
-            usage.relationships.meta[0].target(), "SysML::Usage",
+            usage.relationships.meta[0].target(),
+            "SysML::Usage",
             "Expected meta target to be SysML::Usage"
         );
     }
@@ -2303,15 +2322,20 @@ mod tests {
         let refs = all_refs_with_spans_from(&pair);
 
         // Should have exactly one Chain ref
-        assert_eq!(refs.len(), 1, "Should have exactly one chain reference, got: {:?}", refs);
-        
+        assert_eq!(
+            refs.len(),
+            1,
+            "Should have exactly one chain reference, got: {:?}",
+            refs
+        );
+
         let chain_ref = &refs[0];
         assert!(chain_ref.is_chain(), "Reference should be a chain");
-        
+
         // Get the chain parts
         let parts = chain_ref.chain_parts().expect("Should have chain parts");
         assert_eq!(parts.len(), 2, "Chain should have 2 parts");
-        
+
         // Check first part (pwrCmd)
         assert_eq!(parts[0].name, "pwrCmd");
         if let Some(span) = &parts[0].span {
@@ -2320,7 +2344,7 @@ mod tests {
             assert_eq!(span.start.column, 14, "pwrCmd should start at column 14");
             assert_eq!(span.end.column, 20, "pwrCmd should end at column 20");
         }
-        
+
         // Check second part (pwrLevel)
         assert_eq!(parts[1].name, "pwrLevel");
         if let Some(span) = &parts[1].span {
@@ -2329,7 +2353,7 @@ mod tests {
             assert_eq!(span.start.column, 21, "pwrLevel should start at column 21");
             assert_eq!(span.end.column, 29, "pwrLevel should end at column 29");
         }
-        
+
         // Check overall chain span
         if let Some(span) = chain_ref.span() {
             assert_eq!(span.start.column, 14, "Chain should start at column 14");

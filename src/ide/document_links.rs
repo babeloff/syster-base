@@ -1,7 +1,7 @@
 //! Document links — clickable references to definitions.
 
 use crate::base::FileId;
-use crate::hir::{SymbolIndex, SymbolKind, Resolver, ResolveResult};
+use crate::hir::{ResolveResult, Resolver, SymbolIndex, SymbolKind};
 use std::borrow::Cow;
 
 /// A document link target.
@@ -37,29 +37,29 @@ fn extract_scope(qualified_name: &str) -> String {
 /// 2. Type references - link to the definition of the referenced type
 pub fn document_links(index: &SymbolIndex, file: FileId) -> Vec<DocumentLink> {
     let mut links = Vec::new();
-    
+
     // Get all symbols in this file
     let symbols = index.symbols_in_file(file);
-    
+
     for sym in symbols {
         match sym.kind {
             SymbolKind::Import => {
                 // For imports, the "name" field contains the import path (e.g., "Base::*", "Pkg::Thing")
                 // Strip wildcard suffixes for resolution
                 let import_path = sym.name.as_ref();
-                let resolved_path = if import_path.ends_with("::*") {
-                    &import_path[..import_path.len() - 3]
-                } else if import_path.ends_with(":::**") {
-                    &import_path[..import_path.len() - 5]
+                let resolved_path = if let Some(stripped) = import_path.strip_suffix("::*") {
+                    stripped
+                } else if let Some(stripped) = import_path.strip_suffix(":::**") {
+                    stripped
                 } else {
                     import_path
                 };
-                
+
                 // Use scope-aware resolver to find the target
                 // The import's scope is its parent package
                 let scope = extract_scope(&sym.qualified_name);
                 let resolver = Resolver::new(index).with_scope(scope);
-                
+
                 let target = match resolver.resolve(resolved_path) {
                     ResolveResult::Found(t) => Some(t),
                     ResolveResult::Ambiguous(targets) => targets.into_iter().next(),
@@ -68,7 +68,7 @@ pub fn document_links(index: &SymbolIndex, file: FileId) -> Vec<DocumentLink> {
                         index.lookup_qualified(resolved_path).cloned()
                     }
                 };
-                
+
                 if let Some(target) = target {
                     links.push(DocumentLink {
                         start_line: sym.start_line,
@@ -104,6 +104,6 @@ pub fn document_links(index: &SymbolIndex, file: FileId) -> Vec<DocumentLink> {
             }
         }
     }
-    
+
     links
 }

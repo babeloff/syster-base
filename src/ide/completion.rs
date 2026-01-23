@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use crate::base::FileId;
-use crate::hir::{SymbolIndex, HirSymbol, SymbolKind};
+use crate::hir::{HirSymbol, SymbolIndex, SymbolKind};
 
 /// Kind of completion item.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -19,11 +19,11 @@ impl CompletionKind {
     /// Convert to LSP completion item kind number.
     pub fn to_lsp(&self) -> u32 {
         match self {
-            CompletionKind::Package => 9,     // Module
-            CompletionKind::Definition => 7,  // Class
-            CompletionKind::Usage => 5,       // Field
-            CompletionKind::Keyword => 14,    // Keyword
-            CompletionKind::Snippet => 15,    // Snippet
+            CompletionKind::Package => 9,    // Module
+            CompletionKind::Definition => 7, // Class
+            CompletionKind::Usage => 5,      // Field
+            CompletionKind::Keyword => 14,   // Keyword
+            CompletionKind::Snippet => 15,   // Snippet
         }
     }
 }
@@ -93,19 +93,19 @@ impl CompletionItem {
         };
 
         let mut item = Self::new(symbol.name.clone(), kind);
-        
+
         // Add type info as detail
         if !symbol.supertypes.is_empty() {
             item.detail = Some(Arc::from(format!(": {}", symbol.supertypes.join(", "))));
         } else {
             item.detail = Some(Arc::from(symbol.kind.display()));
         }
-        
+
         // Add doc if available
         if let Some(ref doc) = symbol.doc {
             item.documentation = Some(doc.clone());
         }
-        
+
         item
     }
 }
@@ -160,14 +160,14 @@ pub fn completions(
         CompletionContext::General => {
             // Suggest keywords
             items.extend(keyword_completions());
-            
+
             // Suggest all visible symbols
             for symbol in index.all_definitions() {
                 let mut item = CompletionItem::from_symbol(symbol);
                 item.sort_priority = 50;
                 items.push(item);
             }
-            
+
             // Suggest symbols in the same file with higher priority
             for symbol in index.symbols_in_file(file) {
                 let mut item = CompletionItem::from_symbol(symbol);
@@ -179,10 +179,10 @@ pub fn completions(
 
     // Sort by priority
     items.sort_by_key(|item| item.sort_priority);
-    
+
     // Deduplicate by label
     items.dedup_by(|a, b| a.label == b.label);
-    
+
     items
 }
 
@@ -275,9 +275,9 @@ mod tests {
         let mut symbol = make_symbol("Engine", "Vehicle::Engine", SymbolKind::PartDef);
         symbol.supertypes = vec![Arc::from("Component")];
         symbol.doc = Some(Arc::from("An engine component"));
-        
+
         let item = CompletionItem::from_symbol(&symbol);
-        
+
         assert_eq!(item.label.as_ref(), "Engine");
         assert_eq!(item.kind, CompletionKind::Definition);
         assert!(item.detail.as_ref().unwrap().contains("Component"));
@@ -295,13 +295,16 @@ mod tests {
     #[test]
     fn test_completions_general() {
         let mut index = SymbolIndex::new();
-        index.add_file(FileId::new(0), vec![
-            make_symbol("Car", "Car", SymbolKind::PartDef),
-            make_symbol("Engine", "Engine", SymbolKind::PartDef),
-        ]);
+        index.add_file(
+            FileId::new(0),
+            vec![
+                make_symbol("Car", "Car", SymbolKind::PartDef),
+                make_symbol("Engine", "Engine", SymbolKind::PartDef),
+            ],
+        );
 
         let items = completions(&index, FileId::new(0), 0, 0, None);
-        
+
         // Should have keywords + symbols
         assert!(items.len() > 2);
         assert!(items.iter().any(|i| i.label.as_ref() == "Car"));
