@@ -469,6 +469,8 @@ struct ExtractionContext {
     prefix: String,
     /// Counter for generating unique anonymous scope names
     anon_counter: u32,
+    /// Stack of scope segments for proper push/pop
+    scope_stack: Vec<String>,
 }
 
 impl ExtractionContext {
@@ -481,6 +483,7 @@ impl ExtractionContext {
     }
 
     fn push_scope(&mut self, name: &str) {
+        self.scope_stack.push(name.to_string());
         if self.prefix.is_empty() {
             self.prefix = name.to_string();
         } else {
@@ -489,10 +492,15 @@ impl ExtractionContext {
     }
 
     fn pop_scope(&mut self) {
-        if let Some(pos) = self.prefix.rfind("::") {
-            self.prefix.truncate(pos);
-        } else {
-            self.prefix.clear();
+        if let Some(popped) = self.scope_stack.pop() {
+            // Remove the last segment (which may contain ::) plus the joining ::
+            let suffix_len = if self.scope_stack.is_empty() {
+                popped.len()
+            } else {
+                popped.len() + 2 // +2 for the "::" separator
+            };
+            self.prefix
+                .truncate(self.prefix.len().saturating_sub(suffix_len));
         }
     }
 
@@ -519,6 +527,7 @@ pub fn extract_symbols_unified(file: FileId, syntax: &crate::syntax::SyntaxFile)
         file,
         prefix: String::new(),
         anon_counter: 0,
+        scope_stack: Vec::new(),
     };
 
     match syntax {
@@ -725,15 +734,23 @@ fn extract_from_normalized_usage(
     let name = match usage.name {
         Some(n) => strip_quotes(n),
         None => {
+            // Attach type refs to parent for anonymous usages
+            // Find the parent by matching qualified_name with current scope prefix,
+            // not using last_mut() which could return a sibling anonymous symbol
             if !type_refs.is_empty() {
-                if let Some(parent) = symbols.last_mut() {
-                    parent.type_refs.extend(type_refs);
+                if let Some(parent) = symbols
+                    .iter_mut()
+                    .rev()
+                    .find(|s| s.qualified_name.as_ref() == ctx.prefix)
+                {
+                    parent.type_refs.extend(type_refs.clone());
                 }
             }
 
             // Generate unique anonymous scope name for children
             // Try to use relationship target for meaningful names, otherwise use generic anon
             let line = usage.span.map(|s| s.start.line as u32).unwrap_or(0);
+
             let anon_scope = usage
                 .relationships
                 .iter()
@@ -761,7 +778,35 @@ fn extract_from_normalized_usage(
                 // Fallback: always create a unique scope for anonymous usages with children
                 .unwrap_or_else(|| ctx.next_anon_scope("anon", "", line));
 
-            // Always push scope for children of anonymous usages
+            // Create a symbol for the anonymous usage so it can be looked up during resolution
+            // This is needed for satisfy/perform/exhibit blocks where children need to resolve
+            // redefines in the context of the satisfied/performed/exhibited element
+            let qualified_name = ctx.qualified_name(&anon_scope);
+            let kind = SymbolKind::from_normalized_usage_kind(usage.kind);
+            let span = span_to_info(usage.span);
+
+            let anon_symbol = HirSymbol {
+                file: ctx.file,
+                name: Arc::from(anon_scope.as_str()),
+                short_name: None,
+                qualified_name: Arc::from(qualified_name.as_str()),
+                kind,
+                start_line: span.start_line,
+                start_col: span.start_col,
+                end_line: span.end_line,
+                end_col: span.end_col,
+                short_name_start_line: None,
+                short_name_start_col: None,
+                short_name_end_line: None,
+                short_name_end_col: None,
+                supertypes: Vec::new(),
+                type_refs,
+                doc: None,
+                is_public: false,
+            };
+            symbols.push(anon_symbol);
+
+            // Push scope for children of anonymous usages
             ctx.push_scope(&anon_scope);
 
             // Recurse into children for anonymous usages
@@ -1205,6 +1250,7 @@ mod tests {
             file: FileId::new(0),
             prefix: String::new(),
             anon_counter: 0,
+            scope_stack: Vec::new(),
         };
 
         assert_eq!(ctx.qualified_name("Foo"), "Foo");
@@ -1220,5 +1266,79 @@ mod tests {
 
         ctx.pop_scope();
         assert_eq!(ctx.qualified_name("Root"), "Root");
+    }
+}
+
+#[cfg(test)]
+mod test_package_span {
+    use super::*;
+    use crate::base::FileId;
+    use crate::syntax::parser::parse_content;
+
+    #[test]
+    fn test_hir_simple_package_span() {
+        let source = "package SimpleVehicleModel { }";
+        let syntax = parse_content(source, std::path::Path::new("test.sysml")).unwrap();
+
+        let symbols = extract_symbols_unified(FileId(1), &syntax);
+
+        let pkg_sym = symbols
+            .iter()
+            .find(|s| s.name.as_ref() == "SimpleVehicleModel")
+            .unwrap();
+
+        println!(
+            "Package symbol: name='{}' start=({},{}), end=({},{})",
+            pkg_sym.name, pkg_sym.start_line, pkg_sym.start_col, pkg_sym.end_line, pkg_sym.end_col
+        );
+
+        // The name "SimpleVehicleModel" starts at column 8 (after "package ")
+        assert_eq!(pkg_sym.start_col, 8, "start_col should be 8");
+        assert_eq!(pkg_sym.end_col, 26, "end_col should be 26");
+    }
+
+    #[test]
+    fn test_hir_nested_package_span() {
+        // Match the structure of VehicleIndividuals.sysml
+        let source = r#"package VehicleIndividuals {
+	package IndividualDefinitions {
+	}
+}"#;
+        let syntax = parse_content(source, std::path::Path::new("test.sysml")).unwrap();
+
+        let symbols = extract_symbols_unified(FileId(1), &syntax);
+
+        for sym in &symbols {
+            println!(
+                "Symbol: name='{}' kind={:?} start=({},{}), end=({},{})",
+                sym.name, sym.kind, sym.start_line, sym.start_col, sym.end_line, sym.end_col
+            );
+        }
+
+        // Top-level package: "VehicleIndividuals" starts at column 8
+        let outer = symbols
+            .iter()
+            .find(|s| s.name.as_ref() == "VehicleIndividuals")
+            .unwrap();
+        assert_eq!(outer.start_col, 8, "outer start_col should be 8");
+        assert_eq!(
+            outer.end_col, 26,
+            "outer end_col should be 26 (8 + 18 = 26)"
+        );
+
+        // Nested package: "IndividualDefinitions" on line 2, with a tab prefix
+        // "package IndividualDefinitions" - tab is 1 char, "package " is 8 chars = 9
+        let nested = symbols
+            .iter()
+            .find(|s| s.name.as_ref() == "IndividualDefinitions")
+            .unwrap();
+        println!(
+            "Nested package: start_col={}, end_col={}",
+            nested.start_col, nested.end_col
+        );
+        // After tab (1) and "package " (8) = 9
+        assert_eq!(nested.start_col, 9, "nested start_col should be 9");
+        // "IndividualDefinitions" is 21 chars, so 9 + 21 = 30
+        assert_eq!(nested.end_col, 30, "nested end_col should be 30");
     }
 }

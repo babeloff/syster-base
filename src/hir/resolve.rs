@@ -23,6 +23,9 @@ use std::sync::Arc;
 use super::symbols::{HirSymbol, RefKind, SymbolKind, TypeRefKind};
 use crate::base::FileId;
 
+/// Type alias for resolution cache: (name, starting_scope) -> resolved_qname
+type ResolutionCache = HashMap<(Arc<str>, Arc<str>), Option<Arc<str>>>;
+
 // ============================================================================
 // SCOPE VISIBILITY (Pre-computed at index time)
 // ============================================================================
@@ -454,9 +457,6 @@ impl SymbolIndex {
         // Ensure visibility maps are built first
         self.ensure_visibility_maps();
 
-        // Type alias for the memoization cache
-        type ResolutionCache = HashMap<(Arc<str>, Arc<str>), Option<Arc<str>>>;
-
         // Memoization cache for scope walk results: (name, starting_scope) -> resolved_qname
         // This avoids re-resolving the same name from the same scope multiple times
         let mut resolution_cache: ResolutionCache = HashMap::new();
@@ -467,11 +467,16 @@ impl SymbolIndex {
 
         use std::rc::Rc;
 
-        // Type alias for work items: (sym_idx, trk_idx, part_idx, target, chain_context, ref_kind)
-        type ChainContext = Option<(Rc<Vec<Arc<str>>>, usize)>;
-        type WorkItem = (SymbolIdx, usize, usize, Arc<str>, ChainContext, RefKind);
-
         // Collect work items, separating first-parts from subsequent chain parts
+        // Each item: (sym_idx, trk_idx, part_idx, target, chain_context, ref_kind)
+        type WorkItem = (
+            SymbolIdx,
+            usize,
+            usize,
+            Arc<str>,
+            Option<(Rc<Vec<Arc<str>>>, usize)>,
+            RefKind,
+        );
         let mut pass1_work: Vec<WorkItem> = Vec::new();
         let mut pass2_work: Vec<WorkItem> = Vec::new();
 
@@ -565,9 +570,8 @@ impl SymbolIndex {
         containing_symbol: &str,
         target: &str,
         chain_context: &Option<(std::rc::Rc<Vec<Arc<str>>>, usize)>,
-        cache: &mut HashMap<(Arc<str>, Arc<str>), Option<Arc<str>>>,
+        cache: &mut ResolutionCache,
     ) -> Option<Arc<str>> {
-        #![allow(clippy::type_complexity)]
         // Get the scope for resolution
         let scope = containing_symbol;
 
@@ -630,27 +634,24 @@ impl SymbolIndex {
             };
 
             let type_resolver = Resolver::new(self).with_scope(scope);
-            match type_resolver.resolve(type_name) {
-                ResolveResult::Found(type_sym) => {
-                    if visited.contains(&type_sym.qualified_name) {
-                        // Cycle detected, stop here
-                        break;
-                    }
-                    visited.insert(type_sym.qualified_name.clone());
+            let ResolveResult::Found(type_sym) = type_resolver.resolve(type_name) else {
+                // Can't resolve further, use what we have
+                break;
+            };
 
-                    // If this symbol is a definition, stop
-                    if type_sym.kind.is_definition() {
-                        return type_sym.qualified_name.clone();
-                    }
-
-                    // Otherwise continue following
-                    current_qname = type_sym.qualified_name.clone();
-                }
-                _ => {
-                    // Can't resolve further, use what we have
-                    break;
-                }
+            if visited.contains(&type_sym.qualified_name) {
+                // Cycle detected, stop here
+                break;
             }
+            visited.insert(type_sym.qualified_name.clone());
+
+            // If this symbol is a definition, return it
+            if type_sym.kind.is_definition() {
+                return type_sym.qualified_name.clone();
+            }
+
+            // Otherwise continue following
+            current_qname = type_sym.qualified_name.clone();
         }
 
         current_qname
@@ -686,10 +687,8 @@ impl SymbolIndex {
         let mut current_sym_qname = first_sym.qualified_name.clone();
         let mut current_type_scope = self.get_member_lookup_scope(&first_sym, scope);
 
-        // Step 2: Walk through the chain, resolving each part (indices 1..=chain_idx)
-        for (idx, part) in chain_parts[1..=chain_idx].iter().enumerate() {
-            let i = idx + 1; // Actual index in chain_parts
-
+        // Step 2: Walk through the chain, resolving each part
+        for (i, part) in chain_parts.iter().enumerate().take(chain_idx + 1).skip(1) {
             // SysML Pattern: Usages can have nested members defined directly within them.
             // For example: part differential:Differential { port leftDiffPort:DiffPort; }
             // Here `leftDiffPort` is a member of the usage, not the Differential definition.
@@ -957,34 +956,32 @@ impl SymbolIndex {
                 continue;
             };
 
-            // Look for satisfied requirement (Subsets refs point to the requirement being satisfied)
-            // The satisfy relationship creates a Subsets ref to the requirement
-            if type_ref.kind == RefKind::Subsets {
-                // Try to find the member in the satisfied requirement's scope
-                let Some(target_type) = self.lookup_qualified(resolved_qname) else {
-                    continue;
-                };
+            // Look for satisfied requirement - can be Subsets (from :>) or Other (from satisfy)
+            // The satisfy relationship creates a ref to the requirement being satisfied
+            // We check the target's kind rather than the ref kind to be more robust
+            let Some(target_type) = self.lookup_qualified(resolved_qname) else {
+                continue;
+            };
 
-                // Check if target is a requirement-like definition
-                if matches!(
-                    target_type.kind,
-                    SymbolKind::RequirementDef
-                        | SymbolKind::RequirementUsage
-                        | SymbolKind::ConstraintDef
-                        | SymbolKind::ConstraintUsage
-                ) {
-                    // Look for the member in the requirement's scope
-                    let member_qname = format!("{}::{}", resolved_qname, member_name);
-                    if self.lookup_qualified(&member_qname).is_some() {
-                        return Some(Arc::from(member_qname));
-                    }
+            // Check if target is a requirement-like definition
+            if matches!(
+                target_type.kind,
+                SymbolKind::RequirementDef
+                    | SymbolKind::RequirementUsage
+                    | SymbolKind::ConstraintDef
+                    | SymbolKind::ConstraintUsage
+            ) {
+                // Look for the member in the requirement's scope
+                let member_qname = format!("{}::{}", resolved_qname, member_name);
+                if self.lookup_qualified(&member_qname).is_some() {
+                    return Some(Arc::from(member_qname));
+                }
 
-                    // Also check visibility map for inherited members
-                    if let Some(vis) = self.visibility_for_scope(resolved_qname) {
-                        if let Some(qname) = vis.lookup(member_name) {
-                            if self.lookup_qualified(qname).is_some() {
-                                return Some(Arc::from(qname.as_ref()));
-                            }
+                // Also check visibility map for inherited members
+                if let Some(vis) = self.visibility_for_scope(resolved_qname) {
+                    if let Some(qname) = vis.lookup(member_name) {
+                        if self.lookup_qualified(qname).is_some() {
+                            return Some(Arc::from(qname.as_ref()));
                         }
                     }
                 }
@@ -1027,12 +1024,13 @@ impl SymbolIndex {
                     .or_insert_with(|| ScopeVisibility::new(symbol.qualified_name.clone()));
             }
 
-            // Add symbol to its parent scope's direct definitions
-            // Skip imports - they don't define names, they bring in names from elsewhere
+            // Skip adding import symbols as direct definitions - they're processed separately
+            // and shouldn't shadow global packages with the same name
             if symbol.kind == SymbolKind::Import {
                 continue;
             }
 
+            // Add symbol to its parent scope's direct definitions
             let parent_scope: Arc<str> = Self::parent_scope(&symbol.qualified_name)
                 .map(Arc::from)
                 .unwrap_or_else(|| Arc::from(""));
@@ -1115,18 +1113,8 @@ impl SymbolIndex {
         name: &str,
         starting_scope: &str,
     ) -> Option<Arc<str>> {
-        tracing::trace!(
-            "[RESOLVE_SUPER] Resolving '{}' from scope '{}'",
-            name,
-            starting_scope
-        );
-
         // Try qualified lookup first
         if let Some(sym) = self.lookup_qualified(name) {
-            tracing::trace!(
-                "[RESOLVE_SUPER] Found '{}' via direct qualified lookup",
-                name
-            );
             return Some(sym.qualified_name.clone());
         }
 
@@ -1141,12 +1129,6 @@ impl SymbolIndex {
             };
 
             if let Some(sym) = self.lookup_qualified(&qname) {
-                tracing::trace!(
-                    "[RESOLVE_SUPER] Found '{}' as qualified '{}' in scope '{}'",
-                    name,
-                    qname,
-                    current_scope
-                );
                 return Some(sym.qualified_name.clone());
             }
 
@@ -1154,22 +1136,10 @@ impl SymbolIndex {
             if let Some(vis) = self.visibility_map.get(current_scope) {
                 // Check direct definitions first
                 if let Some(resolved) = vis.direct_defs.get(name) {
-                    tracing::trace!(
-                        "[RESOLVE_SUPER] Found '{}' as direct def in scope '{}' -> {}",
-                        name,
-                        current_scope,
-                        resolved
-                    );
                     return Some(resolved.clone());
                 }
                 // Also check imports (important for types imported via `import X::*`)
                 if let Some(resolved) = vis.imports.get(name) {
-                    tracing::trace!(
-                        "[RESOLVE_SUPER] Found '{}' as import in scope '{}' -> {}",
-                        name,
-                        current_scope,
-                        resolved
-                    );
                     return Some(resolved.clone());
                 }
             }
@@ -1179,12 +1149,6 @@ impl SymbolIndex {
             }
             current_scope = Self::parent_scope(current_scope).unwrap_or("");
         }
-
-        tracing::trace!(
-            "[RESOLVE_SUPER] '{}' NOT FOUND from scope '{}'",
-            name,
-            starting_scope
-        );
         None
     }
 
@@ -1370,6 +1334,13 @@ impl SymbolIndex {
     fn parent_scope(qualified_name: &str) -> Option<&str> {
         if qualified_name.is_empty() {
             return None;
+        }
+        // Handle import qualified names: "Scope::import:Path" -> parent is "Scope"
+        if let Some(import_pos) = qualified_name.find("::import:") {
+            if import_pos == 0 {
+                return Some(""); // Root level import
+            }
+            return Some(&qualified_name[..import_pos]);
         }
         match qualified_name.rfind("::") {
             Some(idx) => Some(&qualified_name[..idx]),

@@ -22,7 +22,14 @@ pub struct DocumentLink {
 }
 
 /// Extract the parent scope from a qualified name.
+/// For import symbols like "TestClass::import:Base", returns "TestClass".
 fn extract_scope(qualified_name: &str) -> String {
+    // Handle import qualified names: "Scope::import:Target" -> "Scope"
+    if let Some(import_pos) = qualified_name.find("::import:") {
+        return qualified_name[..import_pos].to_string();
+    }
+
+    // Regular qualified name: "Scope::Name" -> "Scope"
     if let Some(pos) = qualified_name.rfind("::") {
         qualified_name[..pos].to_string()
     } else {

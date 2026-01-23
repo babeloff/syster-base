@@ -761,8 +761,32 @@ fn visit_pair(pair: &Pair<Rule>, ctx: &mut ParseContext, depth: usize, in_body: 
             }
         }
 
-        // Handle owned_reference_subsetting (used in short-form usages like "satisfy SafetyReq;")
+        // Handle satisfy_requirement_usage specially to get relationships right
+        // Grammar: satisfy ... (owned_reference_subsetting | requirement_usage_keyword ...) ... ("by" satisfaction_subject_member)?
+        // The owned_reference_subsetting is the REQUIREMENT being satisfied, should be Satisfies
+        // The satisfaction_subject_member is the SUBJECT satisfying it (less important for resolution)
+        Rule::satisfy_requirement_usage => {
+            for inner in pair.clone().into_inner() {
+                if inner.as_rule() == Rule::owned_reference_subsetting {
+                    // The requirement reference - this is what's being satisfied
+                    for extracted in all_refs_with_spans_from(&inner) {
+                        ctx.relationships.satisfies.push(SatisfyRel::new(extracted));
+                    }
+                } else if inner.as_rule() == Rule::satisfaction_subject_member {
+                    // The subject (e.g., vehicle_b.engine) - just an expression ref, not a relationship
+                    for extracted in all_refs_with_spans_from(&inner) {
+                        ctx.expression_refs.push(extracted);
+                    }
+                } else {
+                    // Recurse into other children (e.g., requirement_body)
+                    visit_pair(&inner, ctx, depth + 1, in_body);
+                }
+            }
+        }
+
+        // Handle owned_reference_subsetting (used in short-form usages like `:> Feature;`)
         // This captures the reference as a subsetting relationship
+        // NOTE: For satisfy_requirement_usage, this is handled specially above
         Rule::owned_reference_subsetting => {
             for extracted in all_refs_with_spans_from(pair) {
                 ctx.relationships
@@ -771,10 +795,12 @@ fn visit_pair(pair: &Pair<Rule>, ctx: &mut ParseContext, depth: usize, in_body: 
             }
         }
 
-        // Domain-specific relationships
+        // Domain-specific relationships - satisfaction_subject_member handled in satisfy_requirement_usage above
+        // This is a fallback for any other context (should be rare)
         Rule::satisfaction_subject_member => {
+            // In non-satisfy context, treat as expression ref
             for extracted in all_refs_with_spans_from(pair) {
-                ctx.relationships.satisfies.push(SatisfyRel::new(extracted));
+                ctx.expression_refs.push(extracted);
             }
         }
 
@@ -2187,14 +2213,18 @@ mod tests {
         assert_eq!(usage.name, Some("req1".to_string()));
         // Typing should be extracted
         assert_eq!(usage.relationships.typed_by, Some("Req1".to_string()));
-        // Satisfies should contain "system"
-        assert_eq!(usage.relationships.satisfies.len(), 1);
-        assert_eq!(usage.relationships.satisfies[0].target(), "system");
+        // The "by system" subject should be in expression_refs (it's the satisfier, not what's being satisfied)
+        assert!(
+            usage.expression_refs.iter().any(|r| r.name() == "system"),
+            "Expected 'system' in expression_refs, got: {:?}",
+            usage.expression_refs
+        );
     }
 
     #[test]
     fn test_parse_satisfy_short_form() {
         // This is the short form: "satisfy SafetyReq;" without explicit typing or by clause
+        // In this form, SafetyReq is the requirement being satisfied
         let source = "satisfy SafetyReq;";
         let pair = SysMLParser::parse(Rule::satisfy_requirement_usage, source)
             .unwrap()
@@ -2204,9 +2234,15 @@ mod tests {
         let usage = parse_usage(pair);
 
         assert_eq!(usage.kind, UsageKind::SatisfyRequirement);
-        // The target should be captured in subsets
-        assert_eq!(usage.relationships.subsets.len(), 1);
-        assert_eq!(usage.relationships.subsets[0].target(), "SafetyReq");
+        // The target should be captured in satisfies (what's being satisfied)
+        assert_eq!(
+            usage.relationships.satisfies.len(),
+            1,
+            "Expected satisfies to contain SafetyReq, got: subsets={:?}, satisfies={:?}",
+            usage.relationships.subsets,
+            usage.relationships.satisfies
+        );
+        assert_eq!(usage.relationships.satisfies[0].target(), "SafetyReq");
     }
 
     #[test]
@@ -2610,5 +2646,66 @@ mod tests {
             has_ignition_cmd,
             "IgnitionCmd type should be captured from message payload"
         );
+    }
+
+    #[test]
+    fn test_parse_library_package_name_span() {
+        // Test that library package correctly extracts name span
+        // The span should be for "Requirements", not "standard"
+        let source = "standard library package Requirements { }";
+        let pair = SysMLParser::parse(Rule::library_package, source)
+            .unwrap()
+            .next()
+            .unwrap();
+
+        let pkg = parse_package(&mut pair.into_inner()).unwrap();
+
+        assert_eq!(pkg.name, Some("Requirements".to_string()));
+
+        // The span should start at column 25 (0-indexed: "standard library package " = 25 chars)
+        // and cover just "Requirements" (12 chars), so end at column 37
+        if let Some(span) = pkg.span {
+            println!(
+                "Package span: start=({},{}), end=({},{})",
+                span.start.line, span.start.column, span.end.line, span.end.column
+            );
+            assert_eq!(
+                span.start.column, 25,
+                "Name span should start at column 25 (after 'standard library package ')"
+            );
+            assert_eq!(span.end.column, 37, "Name span should end at column 37");
+        } else {
+            panic!("Package should have a span for the name");
+        }
+    }
+
+    #[test]
+    fn test_parse_simple_package_name_span() {
+        // Test that simple package correctly extracts name span
+        let source = "package SimpleVehicleModel { }";
+        let pair = SysMLParser::parse(Rule::package, source)
+            .unwrap()
+            .next()
+            .unwrap();
+
+        let pkg = parse_package(&mut pair.into_inner()).unwrap();
+
+        assert_eq!(pkg.name, Some("SimpleVehicleModel".to_string()));
+
+        // The span should start at column 8 (0-indexed: "package " = 8 chars)
+        // and cover "SimpleVehicleModel" (18 chars), so end at column 26
+        if let Some(span) = pkg.span {
+            println!(
+                "Package span: start=({},{}), end=({},{})",
+                span.start.line, span.start.column, span.end.line, span.end.column
+            );
+            assert_eq!(
+                span.start.column, 8,
+                "Name span should start at column 8 (after 'package ')"
+            );
+            assert_eq!(span.end.column, 26, "Name span should end at column 26");
+        } else {
+            panic!("Package should have a span for the name");
+        }
     }
 }
