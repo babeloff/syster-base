@@ -1028,6 +1028,11 @@ impl SymbolIndex {
             }
 
             // Add symbol to its parent scope's direct definitions
+            // Skip imports - they don't define names, they bring in names from elsewhere
+            if symbol.kind == SymbolKind::Import {
+                continue;
+            }
+
             let parent_scope: Arc<str> = Self::parent_scope(&symbol.qualified_name)
                 .map(Arc::from)
                 .unwrap_or_else(|| Arc::from(""));

@@ -103,8 +103,8 @@ impl AnalysisHost {
         self.files.contains_key(&path_buf)
     }
 
-    /// Check if a file exists in storage using PathBuf.
-    pub fn has_file_path(&self, path: &PathBuf) -> bool {
+    /// Check if a file exists in storage using Path.
+    pub fn has_file_path(&self, path: &std::path::Path) -> bool {
         self.files.contains_key(path)
     }
 
