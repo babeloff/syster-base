@@ -549,6 +549,23 @@ fn collect_expression_refs_recursive(
             return; // Don't recurse again, we handled it
         }
 
+        // invocation_expression = { owned_feature_typing ~ argument_list }
+        // e.g., EngineEvaluation_6cyl(vehicle.engine.mass, ...)
+        Rule::invocation_expression => {
+            for inner in pair.clone().into_inner() {
+                if inner.as_rule() == Rule::owned_feature_typing {
+                    // Extract the function/calculation name being invoked
+                    if let Some((target, span)) = ref_with_span_from(&inner) {
+                        refs.push(ExtractedRef::simple(target, Some(span)));
+                    }
+                } else if inner.as_rule() == Rule::argument_list {
+                    // Recurse into arguments to extract references there
+                    collect_expression_refs_recursive(&inner, refs, None);
+                }
+            }
+            return; // Don't double-recurse
+        }
+
         _ => {}
     }
 
