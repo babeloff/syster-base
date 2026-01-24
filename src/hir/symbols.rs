@@ -65,6 +65,143 @@ impl RefKind {
             _ => RefKind::Other,
         }
     }
+
+    /// Get a display label for this reference kind.
+    pub fn display(&self) -> &'static str {
+        match self {
+            RefKind::TypedBy => "typed by",
+            RefKind::Specializes => "specializes",
+            RefKind::Redefines => "redefines",
+            RefKind::Subsets => "subsets",
+            RefKind::References => "references",
+            RefKind::Expression => "expression",
+            RefKind::Other => "other",
+        }
+    }
+}
+
+// ============================================================================
+// RELATIONSHIPS
+// ============================================================================
+
+/// The kind of relationship between symbols.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum RelationshipKind {
+    /// `:>` - specialization (for definitions)
+    Specializes,
+    /// `:` - typing (for usages)
+    TypedBy,
+    /// `:>>` - redefinition
+    Redefines,
+    /// `subsets` - subsetting
+    Subsets,
+    /// `::>` - references/featured-by
+    References,
+    // Domain-specific relationships
+    /// `satisfy` - requirement satisfaction
+    Satisfies,
+    /// `perform` - action performance
+    Performs,
+    /// `exhibit` - state exhibition
+    Exhibits,
+    /// `include` - use case inclusion
+    Includes,
+    /// `assert` - constraint assertion
+    Asserts,
+    /// `verify` - verification
+    Verifies,
+}
+
+impl RelationshipKind {
+    /// Convert from NormalizedRelKind.
+    pub fn from_normalized(kind: NormalizedRelKind) -> Option<Self> {
+        match kind {
+            NormalizedRelKind::Specializes => Some(RelationshipKind::Specializes),
+            NormalizedRelKind::TypedBy => Some(RelationshipKind::TypedBy),
+            NormalizedRelKind::Redefines => Some(RelationshipKind::Redefines),
+            NormalizedRelKind::Subsets => Some(RelationshipKind::Subsets),
+            NormalizedRelKind::References => Some(RelationshipKind::References),
+            NormalizedRelKind::Satisfies => Some(RelationshipKind::Satisfies),
+            NormalizedRelKind::Performs => Some(RelationshipKind::Performs),
+            NormalizedRelKind::Exhibits => Some(RelationshipKind::Exhibits),
+            NormalizedRelKind::Includes => Some(RelationshipKind::Includes),
+            NormalizedRelKind::Asserts => Some(RelationshipKind::Asserts),
+            NormalizedRelKind::Verifies => Some(RelationshipKind::Verifies),
+            // Expression, About, Meta, Crosses are not shown as relationships
+            _ => None,
+        }
+    }
+
+    /// Get a display label for this relationship kind.
+    pub fn display(&self) -> &'static str {
+        match self {
+            RelationshipKind::Specializes => "Specializes",
+            RelationshipKind::TypedBy => "Typed by",
+            RelationshipKind::Redefines => "Redefines",
+            RelationshipKind::Subsets => "Subsets",
+            RelationshipKind::References => "References",
+            RelationshipKind::Satisfies => "Satisfies",
+            RelationshipKind::Performs => "Performs",
+            RelationshipKind::Exhibits => "Exhibits",
+            RelationshipKind::Includes => "Includes",
+            RelationshipKind::Asserts => "Asserts",
+            RelationshipKind::Verifies => "Verifies",
+        }
+    }
+}
+
+/// A relationship from this symbol to another.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct HirRelationship {
+    /// The kind of relationship
+    pub kind: RelationshipKind,
+    /// The target name as written in source
+    pub target: Arc<str>,
+    /// The resolved qualified name (if resolved)
+    pub resolved_target: Option<Arc<str>>,
+    /// Start line of the target reference (0-indexed)
+    pub start_line: u32,
+    /// Start column (0-indexed)
+    pub start_col: u32,
+    /// End line (0-indexed)
+    pub end_line: u32,
+    /// End column (0-indexed)
+    pub end_col: u32,
+}
+
+impl HirRelationship {
+    /// Create a new relationship.
+    pub fn new(kind: RelationshipKind, target: impl Into<Arc<str>>) -> Self {
+        Self {
+            kind,
+            target: target.into(),
+            resolved_target: None,
+            start_line: 0,
+            start_col: 0,
+            end_line: 0,
+            end_col: 0,
+        }
+    }
+
+    /// Create a new relationship with span information.
+    pub fn with_span(
+        kind: RelationshipKind,
+        target: impl Into<Arc<str>>,
+        start_line: u32,
+        start_col: u32,
+        end_line: u32,
+        end_col: u32,
+    ) -> Self {
+        Self {
+            kind,
+            target: target.into(),
+            resolved_target: None,
+            start_line,
+            start_col,
+            end_line,
+            end_col,
+        }
+    }
 }
 
 /// A type reference with its source location.
@@ -242,8 +379,10 @@ pub struct HirSymbol {
     pub short_name_end_col: Option<u32>,
     /// Documentation comment, if any
     pub doc: Option<Arc<str>>,
-    /// Types this symbol specializes/subsets
+    /// Types this symbol specializes/subsets (kept for backwards compat)
     pub supertypes: Vec<Arc<str>>,
+    /// All relationships from this symbol (specializes, typed by, satisfies, etc.)
+    pub relationships: Vec<HirRelationship>,
     /// Type references with their source locations (for goto-definition on type annotations)
     pub type_refs: Vec<TypeRefKind>,
     /// Whether this symbol is public (for imports: re-exported to child scopes)
@@ -604,6 +743,7 @@ fn extract_from_normalized_package(
         short_name_end_col: None,
         doc: None,
         supertypes: Vec::new(),
+        relationships: Vec::new(),
         type_refs: Vec::new(),
         is_public: false,
     });
@@ -656,6 +796,38 @@ fn implicit_supertype_for_usage_kind(kind: NormalizedUsageKind) -> Option<&'stat
     }
 }
 
+/// Extract relationships from normalized relationships.
+fn extract_relationships_from_normalized(
+    relationships: &[NormalizedRelationship],
+) -> Vec<HirRelationship> {
+    relationships
+        .iter()
+        .filter_map(|rel| {
+            RelationshipKind::from_normalized(rel.kind).map(|kind| {
+                let (start_line, start_col, end_line, end_col) = rel
+                    .span
+                    .map(|s| {
+                        (
+                            s.start.line.saturating_sub(1),
+                            s.start.column.saturating_sub(1),
+                            s.end.line.saturating_sub(1),
+                            s.end.column.saturating_sub(1),
+                        )
+                    })
+                    .unwrap_or((0, 0, 0, 0));
+                HirRelationship::with_span(
+                    kind,
+                    rel.target.as_str().as_ref(),
+                    start_line as u32,
+                    start_col as u32,
+                    end_line as u32,
+                    end_col as u32,
+                )
+            })
+        })
+        .collect()
+}
+
 fn extract_from_normalized_definition(
     symbols: &mut Vec<HirSymbol>,
     ctx: &mut ExtractionContext,
@@ -691,6 +863,9 @@ fn extract_from_normalized_definition(
     // Extract type references from relationships
     let type_refs = extract_type_refs_from_normalized(&def.relationships);
 
+    // Extract all relationships for hover display
+    let relationships = extract_relationships_from_normalized(&def.relationships);
+
     // Extract doc comment
     let doc = def.doc.map(|s| Arc::from(s.trim()));
 
@@ -710,6 +885,7 @@ fn extract_from_normalized_definition(
         short_name_end_col: sn_end_col,
         doc,
         supertypes,
+        relationships,
         type_refs,
         is_public: false,
     });
@@ -729,6 +905,9 @@ fn extract_from_normalized_usage(
 ) {
     // Extract type references even for anonymous usages
     let type_refs = extract_type_refs_from_normalized(&usage.relationships);
+
+    // Extract all relationships for hover display
+    let relationships = extract_relationships_from_normalized(&usage.relationships);
 
     // For anonymous usages, attach refs to the parent but still recurse into children
     let name = match usage.name {
@@ -800,6 +979,7 @@ fn extract_from_normalized_usage(
                 short_name_end_line: None,
                 short_name_end_col: None,
                 supertypes: Vec::new(),
+                relationships: relationships.clone(),
                 type_refs,
                 doc: None,
                 is_public: false,
@@ -869,6 +1049,7 @@ fn extract_from_normalized_usage(
         short_name_end_col: sn_end_col,
         doc,
         supertypes,
+        relationships,
         type_refs,
         is_public: false,
     });
@@ -906,6 +1087,7 @@ fn extract_from_normalized_import(
         short_name_end_col: None,
         doc: None,
         supertypes: Vec::new(),
+        relationships: Vec::new(),
         type_refs: Vec::new(),
         is_public: import.is_public,
     });
@@ -955,6 +1137,7 @@ fn extract_from_normalized_alias(
         short_name_end_col: None,
         doc: None,
         supertypes: vec![Arc::from(alias.target)],
+        relationships: Vec::new(),
         type_refs,
         is_public: false,
     });
@@ -1012,6 +1195,7 @@ fn extract_from_normalized_comment(
             Some(Arc::from(comment.content))
         },
         supertypes: Vec::new(),
+        relationships: Vec::new(),
         type_refs,
         is_public: false,
     });
@@ -1147,6 +1331,7 @@ fn extract_from_normalized_dependency(
             short_name_end_col: None,
             doc: None,
             supertypes: Vec::new(),
+            relationships: Vec::new(),
             type_refs,
             is_public: false,
         });
@@ -1171,6 +1356,7 @@ fn extract_from_normalized_dependency(
             short_name_end_col: None,
             doc: None,
             supertypes: Vec::new(),
+            relationships: Vec::new(),
             type_refs,
             is_public: false,
         });

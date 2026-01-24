@@ -1,5 +1,5 @@
-use crate::syntax::Span;
 use crate::parser::kerml::Rule;
+use crate::syntax::Span;
 use crate::syntax::kerml::ast::enums::{ClassifierKind, FeatureDirection};
 use crate::syntax::kerml::ast::parsers::ParseError;
 use pest::iterators::Pair;

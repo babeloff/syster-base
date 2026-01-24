@@ -67,7 +67,11 @@ impl AnalysisHost {
     /// Set the content of a file, parsing it and storing the result.
     ///
     /// Returns parse errors if any.
-    pub fn set_file_content(&mut self, path: &str, content: &str) -> Vec<crate::parser::ParseError> {
+    pub fn set_file_content(
+        &mut self,
+        path: &str,
+        content: &str,
+    ) -> Vec<crate::parser::ParseError> {
         use crate::syntax::parser::parse_with_result;
         use std::path::Path;
 
@@ -232,9 +236,23 @@ impl<'a> Analysis<'a> {
         super::hover(self.symbol_index, file_id, line, col)
     }
 
+    /// Get type information at a position.
+    ///
+    /// Returns info if cursor is on a type annotation (`:`, `:>`, `::>`, etc.).
+    pub fn type_info_at(&self, file_id: FileId, line: u32, col: u32) -> Option<super::TypeInfo> {
+        super::type_info_at(self.symbol_index, file_id, line, col)
+    }
+
     /// Go to definition at a position.
     pub fn goto_definition(&self, file_id: FileId, line: u32, col: u32) -> GotoResult {
         super::goto_definition(self.symbol_index, file_id, line, col)
+    }
+
+    /// Go to type definition at a position.
+    ///
+    /// Navigates from a usage to its type definition (e.g., from `engine : Engine` to `part def Engine`).
+    pub fn goto_type_definition(&self, file_id: FileId, line: u32, col: u32) -> GotoResult {
+        super::goto_type_definition(self.symbol_index, file_id, line, col)
     }
 
     /// Find all references to a symbol at a position.

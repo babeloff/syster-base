@@ -5,8 +5,8 @@ use super::super::parsers::{
     parse_comment, parse_definition, parse_import, parse_package, parse_usage,
 };
 use super::super::*;
-use crate::syntax::traits::{AstNode, Named};
 use crate::parser::sysml::{Rule, SysMLParser};
+use crate::syntax::traits::{AstNode, Named};
 
 use pest::Parser;
 

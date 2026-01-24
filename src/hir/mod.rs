@@ -54,5 +54,6 @@ pub use input::SourceRoot;
 pub use resolve::{ResolveResult, Resolver, SymbolIndex};
 pub use source::FileSet;
 pub use symbols::{
-    HirSymbol, RefKind, SymbolKind, TypeRef, TypeRefChain, TypeRefKind, extract_symbols_unified,
+    HirRelationship, HirSymbol, RefKind, RelationshipKind, SymbolKind, TypeRef, TypeRefChain,
+    TypeRefKind, extract_symbols_unified,
 };

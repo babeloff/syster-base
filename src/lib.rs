@@ -38,6 +38,30 @@ pub mod ide;
 /// Project management: workspace loading, stdlib
 pub mod project;
 
+// ============================================================================
+// BACKWARDS COMPATIBILITY - `core` re-exports for syster-lsp migration
+// ============================================================================
+
+/// Backwards compatibility: re-export base and parser items as `core`
+///
+/// This allows syster-lsp to continue using `syster::core::*` imports
+/// while we migrate to the new module paths.
+pub mod core {
+    // Re-export from base
+    pub use crate::base::{FileId, Position};
+
+    // Re-export from parser
+    pub use crate::parser::{ParseError, ParseResult};
+
+    // Re-export constants (with is_supported_extension)
+    pub mod constants {
+        pub use crate::base::constants::*;
+    }
+
+    // Re-export text_utils from ide
+    pub use crate::ide::text_utils;
+}
+
 // Re-export commonly needed items
 pub use parser::keywords;
 

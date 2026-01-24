@@ -14,8 +14,8 @@ use super::utils::{
     extract_full_identification, extract_name_from_identification, find_in, is_body_rule,
     is_definition_rule, is_usage_rule, to_def_kind, to_usage_kind,
 };
-use crate::syntax::Span;
 use crate::parser::sysml::Rule;
+use crate::syntax::Span;
 use pest::iterators::{Pair, Pairs};
 
 /// Parse error type for AST construction

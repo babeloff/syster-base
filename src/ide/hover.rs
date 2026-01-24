@@ -3,7 +3,21 @@
 use std::sync::Arc;
 
 use crate::base::FileId;
-use crate::hir::{HirSymbol, ResolveResult, SymbolIndex, SymbolKind, TypeRef};
+use crate::hir::{HirRelationship, HirSymbol, RelationshipKind, SymbolIndex, SymbolKind};
+use crate::ide::type_info::{find_type_ref_at_position, resolve_type_ref};
+
+/// A resolved relationship with target location info for building links.
+#[derive(Clone, Debug)]
+pub struct ResolvedRelationship {
+    /// The kind of relationship.
+    pub kind: RelationshipKind,
+    /// The target name as written.
+    pub target_name: Arc<str>,
+    /// The resolved target's file (if found).
+    pub target_file: Option<FileId>,
+    /// The resolved target's start line (if found).
+    pub target_line: Option<u32>,
+}
 
 /// Result of a hover request.
 #[derive(Clone, Debug)]
@@ -14,6 +28,8 @@ pub struct HoverResult {
     pub qualified_name: Option<Arc<str>>,
     /// Whether this is a definition (for determining if we should show references).
     pub is_definition: bool,
+    /// Resolved relationships with target location info for building links.
+    pub relationships: Vec<ResolvedRelationship>,
     /// Start line of the hovered range (0-indexed).
     pub start_line: u32,
     /// Start column (0-indexed).
@@ -25,18 +41,59 @@ pub struct HoverResult {
 }
 
 impl HoverResult {
-    /// Create a new hover result.
-    pub fn new(contents: String, symbol: &HirSymbol) -> Self {
+    /// Create a new hover result with resolved relationships.
+    pub fn new(contents: String, symbol: &HirSymbol, index: &SymbolIndex) -> Self {
         Self {
             contents,
             qualified_name: Some(symbol.qualified_name.clone()),
             is_definition: symbol.kind.is_definition(),
+            relationships: resolve_relationships(&symbol.relationships, index),
             start_line: symbol.start_line,
             start_col: symbol.start_col,
             end_line: symbol.end_line,
             end_col: symbol.end_col,
         }
     }
+}
+
+/// Resolve relationships to get target file/line info.
+fn resolve_relationships(
+    relationships: &[HirRelationship],
+    index: &SymbolIndex,
+) -> Vec<ResolvedRelationship> {
+    relationships
+        .iter()
+        .map(|rel| {
+            let target_name = rel.target.clone();
+
+            // Try multiple lookup strategies:
+            // 1. Direct qualified name lookup (e.g., "Parts::Part")
+            // 2. Definition lookup by simple name
+            // 3. Simple name lookup (returns all matches, take first)
+            // 4. If the name contains ::, try the last segment as simple name
+            let target_symbol = index
+                .lookup_qualified(&target_name)
+                .or_else(|| index.lookup_definition(&target_name))
+                .or_else(|| index.lookup_simple(&target_name).into_iter().next())
+                .or_else(|| {
+                    // For qualified names like "Parts::Part", try looking up by the last segment
+                    if let Some(simple_name) = target_name.rsplit("::").next() {
+                        index
+                            .lookup_definition(simple_name)
+                            .or_else(|| index.lookup_simple(simple_name).into_iter().next())
+                    } else {
+                        None
+                    }
+                });
+
+            ResolvedRelationship {
+                kind: rel.kind,
+                target_name,
+                target_file: target_symbol.map(|s| s.file),
+                target_line: target_symbol.map(|s| s.start_line),
+            }
+        })
+        .collect()
 }
 
 /// Get hover information for a position.
@@ -51,37 +108,20 @@ impl HoverResult {
 /// Hover information, or None if nothing to show.
 pub fn hover(index: &SymbolIndex, file: FileId, line: u32, col: u32) -> Option<HoverResult> {
     // First, check if cursor is on a type reference (e.g., ::>, :, :>)
-    if let Some((_target_name, type_ref, _containing_symbol)) =
+    if let Some((target_name, type_ref, containing_symbol)) =
         find_type_ref_at_position(index, file, line, col)
     {
-        // Use pre-resolved target if available (computed during semantic analysis)
-        let target_symbol = if let Some(resolved) = &type_ref.resolved_target {
-            index.lookup_qualified(resolved).cloned()
-        } else {
-            // Fallback: try to resolve at hover time (for backwards compatibility)
-            let scope = _containing_symbol
-                .map(|s| s.qualified_name.as_ref())
-                .unwrap_or("");
-            let resolver = index.resolver_for_scope(scope);
-
-            match resolver.resolve(&_target_name) {
-                ResolveResult::Found(sym) => Some(sym),
-                ResolveResult::Ambiguous(syms) => syms.into_iter().next(),
-                ResolveResult::NotFound => {
-                    // Try qualified name directly
-
-                    index.lookup_qualified(&_target_name).cloned()
-                }
-            }
-        };
-
-        if let Some(target_symbol) = target_symbol {
+        // Try to resolve and show hover for the target type
+        if let Some(target_symbol) =
+            resolve_type_ref(index, type_ref, &target_name, containing_symbol)
+        {
             let contents = build_hover_content(&target_symbol, index);
             // Return with the type_ref's span (where the cursor is)
             return Some(HoverResult {
                 contents,
                 qualified_name: Some(target_symbol.qualified_name.clone()),
                 is_definition: target_symbol.kind.is_definition(),
+                relationships: resolve_relationships(&target_symbol.relationships, index),
                 start_line: type_ref.start_line,
                 start_col: type_ref.start_col,
                 end_line: type_ref.end_line,
@@ -96,11 +136,11 @@ pub fn hover(index: &SymbolIndex, file: FileId, line: u32, col: u32) -> Option<H
     // Build hover content
     let contents = build_hover_content(symbol, index);
 
-    Some(HoverResult::new(contents, symbol))
+    Some(HoverResult::new(contents, symbol, index))
 }
 
 /// Build markdown hover content for a symbol.
-fn build_hover_content(symbol: &HirSymbol, index: &SymbolIndex) -> String {
+fn build_hover_content(symbol: &HirSymbol, _index: &SymbolIndex) -> String {
     let mut content = String::new();
 
     // Symbol signature
@@ -115,31 +155,14 @@ fn build_hover_content(symbol: &HirSymbol, index: &SymbolIndex) -> String {
         content.push('\n');
     }
 
-    // Type information for usages
-    if symbol.kind.is_usage() && !symbol.supertypes.is_empty() {
-        content.push_str("\n**Typed by:** ");
-        content.push_str(&symbol.supertypes.join(", "));
-
-        // Try to add info about the type
-        if let Some(type_symbol) = index.lookup_definition(&symbol.supertypes[0]) {
-            if let Some(ref doc) = type_symbol.doc {
-                content.push_str("\n\n*");
-                // First sentence of doc
-                let first_sentence = doc.split('.').next().unwrap_or(doc);
-                content.push_str(first_sentence.trim());
-                content.push('*');
-            }
-        }
-        content.push('\n');
-    }
+    // Note: Relationships are formatted at the LSP layer with clickable links.
 
     // Qualified name for context
     content.push_str("\n**Qualified Name:** `");
     content.push_str(&symbol.qualified_name);
     content.push_str("`\n");
 
-    // Note: "Referenced by:" section is added at the LSP layer
-    // because it needs file path resolution for clickable links.
+    // Note: "Referenced by:" section is added at the LSP layer.
 
     content
 }
@@ -290,63 +313,6 @@ fn symbol_size(symbol: &HirSymbol) -> u32 {
     line_diff * 1000 + col_diff
 }
 
-/// Find a type reference at a specific position in a file.
-///
-/// Returns the target type name, the TypeRef containing the position,
-/// and the symbol that contains this type_ref (for scope resolution).
-fn find_type_ref_at_position(
-    index: &SymbolIndex,
-    file: FileId,
-    line: u32,
-    col: u32,
-) -> Option<(Arc<str>, &TypeRef, Option<&HirSymbol>)> {
-    let symbols = index.symbols_in_file(file);
-
-    for symbol in symbols {
-        for type_ref_kind in symbol.type_refs.iter() {
-            // Debug: print all type_refs for message symbols on line 780
-            if cfg!(debug_assertions) && symbol.name.contains("ignitionCmd") && line == 780 {
-                eprintln!(
-                    "[HOVER DEBUG] Checking symbol '{}' type_ref at line={} col={}",
-                    symbol.name, line, col
-                );
-                for tr in type_ref_kind.as_refs() {
-                    eprintln!(
-                        "[HOVER DEBUG]   TypeRef: target='{}' span={}:{}-{}:{} contains={} resolved_target={:?}",
-                        tr.target,
-                        tr.start_line,
-                        tr.start_col,
-                        tr.end_line,
-                        tr.end_col,
-                        tr.contains(line, col),
-                        tr.resolved_target
-                    );
-                }
-            }
-
-            let contains = type_ref_kind.contains(line, col);
-
-            if contains {
-                // Find which part contains the position
-                if let Some((_part_idx, tr)) = type_ref_kind.part_at(line, col) {
-                    if cfg!(debug_assertions) && symbol.name.contains("ignitionCmd") && line == 780
-                    {
-                        eprintln!(
-                            "[HOVER DEBUG]   FOUND! part_at returned target='{}' resolved_target={:?}",
-                            tr.target, tr.resolved_target
-                        );
-                    }
-                    return Some((tr.target.clone(), tr, Some(symbol)));
-                } else if cfg!(debug_assertions) && symbol.name.contains("ignitionCmd") {
-                    eprintln!("[HOVER DEBUG]   contains=true but part_at returned None!");
-                }
-            }
-        }
-    }
-
-    None
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -368,6 +334,7 @@ mod tests {
             short_name_end_col: None,
             doc: None,
             supertypes: Vec::new(),
+            relationships: Vec::new(),
             type_refs: Vec::new(),
             is_public: false,
         }

@@ -108,14 +108,19 @@ package TestPkg {
 
     let analysis = host.analysis();
     let index = analysis.symbol_index();
-    
+
     // Get diagnostics using the check_file function
-    let file_id = analysis.get_file_id("test.sysml").expect("Should have file");
+    let file_id = analysis
+        .get_file_id("test.sysml")
+        .expect("Should have file");
     let diagnostics = syster::hir::check_file(index, file_id);
 
     println!("\n=== Diagnostics ===");
     for diag in &diagnostics {
-        println!("  [{:?}] {} (line {})", diag.severity, diag.message, diag.start_line);
+        println!(
+            "  [{:?}] {} (line {})",
+            diag.severity, diag.message, diag.start_line
+        );
     }
 
     // Check for any "duplicate" errors
@@ -127,6 +132,9 @@ package TestPkg {
     assert!(
         duplicate_errors.is_empty(),
         "Should have no duplicate definition errors, but found: {:?}",
-        duplicate_errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+        duplicate_errors
+            .iter()
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
     );
 }

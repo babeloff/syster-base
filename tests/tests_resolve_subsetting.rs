@@ -39,6 +39,7 @@ fn make_symbol(name: &str, qualified: &str, kind: SymbolKind, supertypes: Vec<&s
         short_name_end_col: None,
         doc: None,
         supertypes: supertypes.into_iter().map(Arc::from).collect(),
+        relationships: Vec::new(),
         type_refs: Vec::new(),
         is_public: false,
     }
@@ -68,6 +69,7 @@ fn make_symbol_with_type_refs(
         short_name_end_col: None,
         doc: None,
         supertypes: supertypes.into_iter().map(Arc::from).collect(),
+        relationships: Vec::new(),
         type_refs,
         is_public: false,
     }

@@ -265,6 +265,7 @@ mod tests {
             short_name_end_col: None,
             doc: None,
             supertypes: Vec::new(),
+            relationships: Vec::new(),
             type_refs: Vec::new(),
             is_public: false,
         }

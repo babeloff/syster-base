@@ -155,6 +155,104 @@ pub fn goto_definition(index: &SymbolIndex, file: FileId, line: u32, col: u32) -
     GotoResult::empty()
 }
 
+/// Go to the type definition of a symbol at the given position.
+///
+/// This navigates from a usage to its type definition. For example:
+/// - `engine : Engine` → navigates to `part def Engine`
+/// - `vehicle :> VehiclePart` → navigates to `part def VehiclePart`
+///
+/// Unlike `goto_definition`, this always navigates to the TYPE, not the symbol itself.
+///
+/// # Arguments
+/// * `index` - The symbol index to search
+/// * `file` - The file containing the cursor
+/// * `line` - Cursor line (0-indexed)
+/// * `col` - Cursor column (0-indexed)
+///
+/// # Returns
+/// The location(s) of the type definition, or empty if not found.
+pub fn goto_type_definition(index: &SymbolIndex, file: FileId, line: u32, col: u32) -> GotoResult {
+    // First, check if cursor is directly on a type reference
+    if let Some((target_name, _type_ref, source_symbol)) =
+        find_type_ref_at_position(index, file, line, col)
+    {
+        let scope = extract_scope(&source_symbol.qualified_name);
+        let resolver = Resolver::new(index).with_scope(scope);
+
+        match resolver.resolve_type(&target_name) {
+            ResolveResult::Found(def) => {
+                return GotoResult::single(GotoTarget::from(&def));
+            }
+            ResolveResult::Ambiguous(defs) => {
+                let targets = defs.iter().map(GotoTarget::from).collect();
+                return GotoResult::multiple(targets);
+            }
+            ResolveResult::NotFound => {
+                // Try without scope
+                if let Some(def) = index.lookup_definition(&target_name) {
+                    return GotoResult::single(GotoTarget::from(def));
+                }
+            }
+        }
+    }
+
+    // Find the symbol at the cursor position
+    let symbol = match find_symbol_at_position(index, file, line, col) {
+        Some(s) => s,
+        None => return GotoResult::empty(),
+    };
+
+    // If this is a usage with a type, navigate to the type
+    if !symbol.supertypes.is_empty() {
+        let type_name = &symbol.supertypes[0];
+        let scope = extract_scope(&symbol.qualified_name);
+        let resolver = Resolver::new(index).with_scope(scope);
+
+        match resolver.resolve_type(type_name) {
+            ResolveResult::Found(def) => {
+                return GotoResult::single(GotoTarget::from(&def));
+            }
+            ResolveResult::Ambiguous(defs) => {
+                let targets = defs.iter().map(GotoTarget::from).collect();
+                return GotoResult::multiple(targets);
+            }
+            ResolveResult::NotFound => {
+                // Try direct lookup
+                if let Some(def) = index.lookup_definition(type_name) {
+                    return GotoResult::single(GotoTarget::from(def));
+                }
+            }
+        }
+    }
+
+    // Check type_refs for typed_by relationships
+    for type_ref_kind in &symbol.type_refs {
+        for tr in type_ref_kind.as_refs() {
+            if tr.kind == RefKind::TypedBy || tr.kind == RefKind::Specializes {
+                let scope = extract_scope(&symbol.qualified_name);
+                let resolver = Resolver::new(index).with_scope(scope);
+
+                match resolver.resolve_type(&tr.target) {
+                    ResolveResult::Found(def) => {
+                        return GotoResult::single(GotoTarget::from(&def));
+                    }
+                    ResolveResult::Ambiguous(defs) => {
+                        let targets = defs.iter().map(GotoTarget::from).collect();
+                        return GotoResult::multiple(targets);
+                    }
+                    ResolveResult::NotFound => {
+                        if let Some(def) = index.lookup_definition(&tr.target) {
+                            return GotoResult::single(GotoTarget::from(def));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    GotoResult::empty()
+}
+
 /// Find a type reference at a specific position in a file.
 ///
 /// Returns the target type name, the TypeRef, and the symbol containing the reference.
@@ -264,6 +362,7 @@ mod tests {
             short_name_end_col: None,
             doc: None,
             supertypes: Vec::new(),
+            relationships: Vec::new(),
             type_refs: Vec::new(),
             is_public: false,
         }
