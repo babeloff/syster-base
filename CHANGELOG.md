@@ -5,6 +5,29 @@ All notable changes to syster-base will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1-alpha] - 2026-01-24
+
+### Added
+
+- **Relationships in HIR**: Symbols now track their relationships to other symbols
+  - `HirRelationship` — Represents a relationship between symbols with kind and target
+  - `RelationshipKind` — Enum covering Specializes, TypedBy, Subsets, Redefines, References, Satisfies, Performs, Exhibits, Includes, Asserts, Verifies
+  - `HirSymbol.relationships` — Vector of relationships extracted during symbol extraction
+
+- **Type Information API** (`ide/type_info.rs`):
+  - `type_info_at` — Retrieve type information at a specific cursor position
+  - `goto_type_definition` — Navigate directly from usages to their type definitions
+  - `TypeInfo` — Struct containing type name, definition location, and span info
+
+- **Resolved Relationships in Hover**:
+  - `ResolvedRelationship` — Pre-resolved relationship with target file/line info for clickable links
+  - Hover results now include resolved relationships for LSP to render as navigable links
+
+### Changed
+
+- **Hover Result**: Now includes `relationships: Vec<ResolvedRelationship>` with pre-resolved target locations
+- **Symbol Extraction**: Extracts relationships from specialization, typing, subsetting, and other relationship constructs
+
 ## [0.2.0-alpha] - 2026-01-23
 
 ### 🚀 Major Rewrite — Salsa-based Incremental Architecture
