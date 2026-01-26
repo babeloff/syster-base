@@ -69,6 +69,7 @@ pub enum NormalizedElement<'a> {
     Alias(NormalizedAlias<'a>),
     Comment(NormalizedComment<'a>),
     Dependency(NormalizedDependency<'a>),
+    Filter(NormalizedFilter),
 }
 
 /// A normalized package with its children.
@@ -114,6 +115,8 @@ pub struct NormalizedImport<'a> {
     pub path: &'a str,
     pub span: Option<Span>,
     pub is_public: bool,
+    /// Filter metadata names from bracket syntax, e.g., `import X::*[@Safety]`
+    pub filters: Vec<String>,
 }
 
 /// A normalized alias.
@@ -144,6 +147,15 @@ pub struct NormalizedDependency<'a> {
     pub short_name: Option<&'a str>,
     pub sources: Vec<NormalizedRelationship<'a>>,
     pub targets: Vec<NormalizedRelationship<'a>>,
+    pub span: Option<Span>,
+}
+
+/// A normalized filter statement (e.g., `filter @Safety;`).
+/// Filters restrict which elements are visible from wildcard imports.
+#[derive(Debug, Clone)]
+pub struct NormalizedFilter {
+    /// Simple metadata type names that elements must have (e.g., ["Safety", "Approved"])
+    pub metadata_refs: Vec<String>,
     pub span: Option<Span>,
 }
 
@@ -265,15 +277,8 @@ impl<'a> NormalizedElement<'a> {
             SysMLElement::Dependency(dep) => {
                 NormalizedElement::Dependency(NormalizedDependency::from_sysml(dep))
             }
-            SysMLElement::Filter(_) => {
-                // Skip filters - they don't produce symbols
-                NormalizedElement::Comment(NormalizedComment {
-                    name: None,
-                    short_name: None,
-                    content: "",
-                    about: Vec::new(),
-                    span: None,
-                })
+            SysMLElement::Filter(filter) => {
+                NormalizedElement::Filter(NormalizedFilter::from_sysml(filter))
             }
         }
     }
@@ -741,6 +746,7 @@ impl<'a> NormalizedImport<'a> {
             path: &import.path,
             span: import.span,
             is_public: import.is_public,
+            filters: import.filters.clone(),
         }
     }
 
@@ -749,6 +755,7 @@ impl<'a> NormalizedImport<'a> {
             path: &import.path,
             span: import.span,
             is_public: import.is_public,
+            filters: Vec::new(), // KerML imports don't have filter syntax
         }
     }
 }
@@ -761,6 +768,27 @@ impl<'a> NormalizedAlias<'a> {
             target: &alias.target,
             target_span: alias.target_span,
             span: alias.span,
+        }
+    }
+}
+
+impl NormalizedFilter {
+    fn from_sysml(filter: &crate::syntax::sysml::ast::types::Filter) -> Self {
+        // Extract simple metadata type names from meta_refs
+        // e.g., @Safety -> "Safety", @Pkg::Safety -> "Safety"
+        let metadata_refs = filter
+            .meta_refs
+            .iter()
+            .map(|meta_rel| {
+                let target = meta_rel.target();
+                // Get simple name (last part after ::)
+                target.rsplit("::").next().unwrap_or(&target).to_string()
+            })
+            .collect();
+
+        Self {
+            metadata_refs,
+            span: filter.span,
         }
     }
 }

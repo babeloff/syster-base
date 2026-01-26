@@ -766,12 +766,15 @@ impl Comment {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Import {
     pub path: String,
     pub path_span: Option<Span>,
     pub is_recursive: bool,
     pub is_public: bool,
+    /// Filter expressions from bracket syntax, e.g., `import X::*[@Safety][@Approved]`
+    /// Contains the simple metadata names (e.g., ["Safety", "Approved"])
+    pub filters: Vec<String>,
     pub span: Option<Span>,
 }
 

@@ -406,6 +406,7 @@ fn test_short_name_visibility_via_import() {
                 type_refs: vec![],
                 doc: None,
                 is_public: true,
+                metadata_annotations: vec![],
             },
             HirSymbol {
                 name: Arc::from("kilogram"),
@@ -426,6 +427,7 @@ fn test_short_name_visibility_via_import() {
                 type_refs: vec![],
                 doc: None,
                 is_public: true,
+                metadata_annotations: vec![],
             },
         ],
     );
@@ -453,6 +455,7 @@ fn test_short_name_visibility_via_import() {
                 type_refs: vec![],
                 doc: None,
                 is_public: true,
+                metadata_annotations: vec![],
             },
             HirSymbol {
                 name: Arc::from("SI::*"),
@@ -473,6 +476,7 @@ fn test_short_name_visibility_via_import() {
                 type_refs: vec![],
                 doc: None,
                 is_public: true,
+                metadata_annotations: vec![],
             },
         ],
     );
@@ -576,6 +580,7 @@ fn test_usage_inherits_type_members() {
                 type_refs: vec![],
                 doc: None,
                 is_public: true,
+                metadata_annotations: vec![],
             },
             // Definition: TransportPassenger
             HirSymbol {
@@ -597,6 +602,7 @@ fn test_usage_inherits_type_members() {
                 type_refs: vec![],
                 doc: None,
                 is_public: true,
+                metadata_annotations: vec![],
             },
             // Member of definition: getInVehicle_a
             HirSymbol {
@@ -618,6 +624,7 @@ fn test_usage_inherits_type_members() {
                 type_refs: vec![],
                 doc: None,
                 is_public: true,
+                metadata_annotations: vec![],
             },
             // Usage: transportPassenger : TransportPassenger
             HirSymbol {
@@ -639,6 +646,7 @@ fn test_usage_inherits_type_members() {
                 type_refs: vec![],
                 doc: None,
                 is_public: true,
+                metadata_annotations: vec![],
             },
             // Nested member: driverGetInVehicle (references getInVehicle_a)
             HirSymbol {
@@ -660,6 +668,7 @@ fn test_usage_inherits_type_members() {
                 type_refs: vec![],
                 doc: None,
                 is_public: true,
+                metadata_annotations: vec![],
             },
             // Nested action 'a' inside transportPassenger (no type annotation)
             HirSymbol {
@@ -681,6 +690,7 @@ fn test_usage_inherits_type_members() {
                 type_refs: vec![],
                 doc: None,
                 is_public: true,
+                metadata_annotations: vec![],
             },
             // Action inside 'a' that references getInVehicle_a
             HirSymbol {
@@ -702,6 +712,7 @@ fn test_usage_inherits_type_members() {
                 type_refs: vec![],
                 doc: None,
                 is_public: true,
+                metadata_annotations: vec![],
             },
         ],
     );

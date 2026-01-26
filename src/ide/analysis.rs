@@ -21,7 +21,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use crate::base::FileId;
-use crate::hir::{SymbolIndex, extract_symbols_unified};
+use crate::hir::{SymbolIndex, extract_with_filters};
 use crate::syntax::SyntaxFile;
 
 use super::{
@@ -155,9 +155,9 @@ impl AnalysisHost {
         for (path, syntax_file) in &self.files {
             let path_str = path.to_string_lossy().to_string();
             if let Some(&file_id) = self.file_id_map.get(&path_str) {
-                // Extract symbols using unified extraction (handles both SysML and KerML)
-                let symbols = extract_symbols_unified(file_id, syntax_file);
-                new_index.add_file(file_id, symbols);
+                // Extract symbols and filters using unified extraction (handles both SysML and KerML)
+                let result = extract_with_filters(file_id, syntax_file);
+                new_index.add_extraction_result(file_id, result);
             }
         }
 

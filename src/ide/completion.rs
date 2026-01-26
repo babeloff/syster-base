@@ -268,6 +268,7 @@ mod tests {
             relationships: Vec::new(),
             type_refs: Vec::new(),
             is_public: false,
+            metadata_annotations: Vec::new(),
         }
     }
 
