@@ -54,8 +54,8 @@ pub mod core {
     // Re-export from base
     pub use crate::base::{FileId, Position};
 
-    // Re-export from parser
-    pub use crate::parser::{ParseError, ParseResult};
+    // Re-export from syntax parser (now has ParseError/ParseResult)
+    pub use crate::syntax::parser::{ParseError, ParseResult};
 
     // Re-export constants (with is_supported_extension)
     pub mod constants {

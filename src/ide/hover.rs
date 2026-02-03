@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use crate::base::FileId;
 use crate::hir::{HirRelationship, HirSymbol, RelationshipKind, SymbolIndex, SymbolKind};
-use crate::ide::type_info::{find_type_ref_at_position, resolve_type_ref};
+use crate::ide::type_info::{find_type_ref_at_position, resolve_type_ref_with_chain};
 
 /// A resolved relationship with target location info for building links.
 #[derive(Clone, Debug)]
@@ -108,13 +108,9 @@ fn resolve_relationships(
 /// Hover information, or None if nothing to show.
 pub fn hover(index: &SymbolIndex, file: FileId, line: u32, col: u32) -> Option<HoverResult> {
     // First, check if cursor is on a type reference (e.g., ::>, :, :>)
-    if let Some((target_name, type_ref, containing_symbol)) =
-        find_type_ref_at_position(index, file, line, col)
-    {
+    if let Some(ctx) = find_type_ref_at_position(index, file, line, col) {
         // Try to resolve and show hover for the target type
-        if let Some(target_symbol) =
-            resolve_type_ref(index, type_ref, &target_name, containing_symbol)
-        {
+        if let Some(target_symbol) = resolve_type_ref_with_chain(index, &ctx) {
             let contents = build_hover_content(&target_symbol, index);
             // Return with the type_ref's span (where the cursor is)
             return Some(HoverResult {
@@ -122,10 +118,28 @@ pub fn hover(index: &SymbolIndex, file: FileId, line: u32, col: u32) -> Option<H
                 qualified_name: Some(target_symbol.qualified_name.clone()),
                 is_definition: target_symbol.kind.is_definition(),
                 relationships: resolve_relationships(&target_symbol.relationships, index),
-                start_line: type_ref.start_line,
-                start_col: type_ref.start_col,
-                end_line: type_ref.end_line,
-                end_col: type_ref.end_col,
+                start_line: ctx.type_ref.start_line,
+                start_col: ctx.type_ref.start_col,
+                end_line: ctx.type_ref.end_line,
+                end_col: ctx.type_ref.end_col,
+            });
+        } else {
+            // Type reference found but couldn't be resolved - show unresolved message
+            // This happens when the referenced symbol is not visible (e.g., import was removed)
+            let contents = format!(
+                "```sysml\n{}\n```\n\n**Symbol not resolved**\n\nThe symbol `{}` is not visible in this scope. \
+                 You may need to add an import statement.",
+                ctx.target_name, ctx.target_name
+            );
+            return Some(HoverResult {
+                contents,
+                qualified_name: None,
+                is_definition: false,
+                relationships: Vec::new(),
+                start_line: ctx.type_ref.start_line,
+                start_col: ctx.type_ref.start_col,
+                end_line: ctx.type_ref.end_line,
+                end_col: ctx.type_ref.end_col,
             });
         }
     }
@@ -349,6 +363,11 @@ mod tests {
             is_public: false,
             view_data: None,
             metadata_annotations: Vec::new(),
+            is_abstract: false,
+            is_variation: false,
+            is_readonly: false,
+            is_derived: false,
+            is_parallel: false,
         }
     }
 

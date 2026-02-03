@@ -66,20 +66,6 @@ fn test_simple_vehicle_model_resolution() {
     // Run semantic checks
     let diagnostics = check_file(analysis.symbol_index(), file_id);
 
-    // Debug: print all diagnostics
-    if !diagnostics.is_empty() {
-        eprintln!("\n=== Semantic Diagnostics ({}) ===", diagnostics.len());
-        for diag in &diagnostics {
-            eprintln!(
-                "  [{:?}] Line {}: {}",
-                diag.severity,
-                diag.start_line + 1,
-                diag.message
-            );
-        }
-        eprintln!("===================================\n");
-    }
-
     // Test specific resolution cases
     let index = analysis.symbol_index();
 
@@ -105,49 +91,10 @@ fn test_simple_vehicle_model_resolution() {
 
     let result = resolver.resolve("IgnitionCmdPort");
 
-    match &result {
-        ResolveResult::Found(sym) => {
-            eprintln!("✓ IgnitionCmdPort resolved to: {}", sym.qualified_name);
-        }
-        ResolveResult::NotFound => {
-            // Debug: what IS visible from this scope?
-            eprintln!("\n=== Debug: Visibility from Vehicle scope ===");
-            if let Some(vis) =
-                index.visibility_for_scope("SimpleVehicleModel::Definitions::PartDefinitions")
-            {
-                eprintln!("Direct defs in PartDefinitions:");
-                for (name, qname) in vis.direct_defs().take(10) {
-                    eprintln!("  {} -> {}", name, qname);
-                }
-                eprintln!("Imports in PartDefinitions:");
-                for (name, qname) in vis.imports().take(10) {
-                    eprintln!("  {} -> {}", name, qname);
-                }
-            }
-            if let Some(vis) = index.visibility_for_scope("SimpleVehicleModel::Definitions") {
-                eprintln!("\nDirect defs in Definitions:");
-                for (name, qname) in vis.direct_defs().take(10) {
-                    eprintln!("  {} -> {}", name, qname);
-                }
-                eprintln!("Imports in Definitions:");
-                for (name, qname) in vis.imports().take(10) {
-                    eprintln!("  {} -> {}", name, qname);
-                }
-            }
-            eprintln!("=============================================\n");
-
-            panic!("IgnitionCmdPort should resolve from Vehicle scope!");
-        }
-        ResolveResult::Ambiguous(candidates) => {
-            panic!(
-                "IgnitionCmdPort is ambiguous: {:?}",
-                candidates
-                    .iter()
-                    .map(|s| &s.qualified_name)
-                    .collect::<Vec<_>>()
-            );
-        }
-    }
+    assert!(
+        matches!(result, ResolveResult::Found(_)),
+        "IgnitionCmdPort should resolve from Vehicle scope"
+    );
 
     // The actual test: there should be NO undefined reference errors for types
     // defined in the same file's package structure
@@ -282,6 +229,329 @@ package Root {
     }
 }
 
+/// Debug test to understand nested allocate statements
+#[test]
+fn test_nested_allocate_layers() {
+    let content = r#"
+package Test {
+    // Define the types we're allocating between
+    allocation def LogicalToPhysical;
+    
+    part def Logical {
+        part torqueGenerator {
+            action generateTorque;
+        }
+    }
+    
+    part def Physical {
+        part engine {
+            action generateTorque;
+        }
+    }
+    
+    // Instances  
+    part vehicleLogical : Logical;
+    part vehicle_b : Physical;
+    
+    // The allocation with nested allocates
+    allocation vehicleLogicalToPhysicalAllocation : LogicalToPhysical
+        allocate vehicleLogical to vehicle_b {
+            allocate vehicleLogical.torqueGenerator to vehicle_b.engine {
+                allocate vehicleLogical.torqueGenerator.generateTorque to vehicle_b.engine.generateTorque;
+            }
+        }
+}
+"#;
+
+    let mut host = AnalysisHost::new();
+    let parse_errors = host.set_file_content("test.sysml", content);
+    eprintln!("Parse errors: {:?}", parse_errors);
+
+    let analysis = host.analysis();
+    let file_id = analysis
+        .get_file_id("test.sysml")
+        .expect("File not in index");
+    let index = analysis.symbol_index();
+
+    // Look at what symbols we got
+    eprintln!("\n=== Symbols in file ===");
+    for sym in index.symbols_in_file(file_id) {
+        eprintln!("Symbol: {} (kind={:?})", sym.qualified_name, sym.kind);
+        if !sym.type_refs.is_empty() {
+            eprintln!("  type_refs:");
+            for tr in &sym.type_refs {
+                match tr {
+                    syster::hir::TypeRefKind::Simple(r) => {
+                        eprintln!("    {} -> {:?}", r.target, r.resolved_target);
+                    }
+                    syster::hir::TypeRefKind::Chain(c) => {
+                        let parts: Vec<_> = c
+                            .parts
+                            .iter()
+                            .map(|p| format!("{} -> {:?}", p.target, p.resolved_target))
+                            .collect();
+                        eprintln!("    Chain: {:?}", parts);
+                    }
+                }
+            }
+        }
+    }
+
+    // Run semantic checks
+    let diagnostics = syster::hir::check_file(index, file_id);
+
+    eprintln!("\n=== Diagnostics ===");
+    for diag in &diagnostics {
+        eprintln!(
+            "  [{:?}] Line {}: {}",
+            diag.severity,
+            diag.start_line + 1,
+            diag.message
+        );
+    }
+}
+
+/// Test then action inline - check symbol span is correct
+#[test]
+fn test_then_action_inline_span() {
+    let content = r#"
+package Test {
+    action def TestAction {
+        action start;
+        then action evaluatePassFail {
+            in massMeasured;
+            out verdict;
+        }
+        flow from start to evaluatePassFail.massMeasured;
+    }
+}
+"#;
+
+    let mut host = AnalysisHost::new();
+    host.set_file_content("test.sysml", content);
+    let analysis = host.analysis();
+    let file_id = analysis.get_file_id("test.sysml").unwrap();
+    let index = analysis.symbol_index();
+
+    eprintln!("\n=== Symbols ===");
+    for sym in index.symbols_in_file(file_id) {
+        eprintln!(
+            "{} (kind={:?}) lines {}-{}",
+            sym.qualified_name,
+            sym.kind,
+            sym.start_line + 1,
+            sym.end_line + 1
+        );
+        for tr in &sym.type_refs {
+            match tr {
+                syster::hir::TypeRefKind::Simple(r) => {
+                    eprintln!("  TypeRef: {} -> {:?}", r.target, r.resolved_target);
+                }
+                syster::hir::TypeRefKind::Chain(c) => {
+                    for p in &c.parts {
+                        eprintln!("  Chain part: {} -> {:?}", p.target, p.resolved_target);
+                    }
+                }
+            }
+        }
+    }
+
+    // Check evaluatePassFail symbol exists and has correct span
+    let eval_sym = index
+        .symbols_in_file(file_id)
+        .into_iter()
+        .find(|s| s.name.as_ref() == "evaluatePassFail");
+    assert!(eval_sym.is_some(), "evaluatePassFail should exist");
+    let eval_sym = eval_sym.unwrap();
+    eprintln!(
+        "\nevaluatePassFail: lines {}-{}, cols {}-{}",
+        eval_sym.start_line + 1,
+        eval_sym.end_line + 1,
+        eval_sym.start_col,
+        eval_sym.end_col
+    );
+
+    // Check visibility - evaluatePassFail should be visible from TestAction scope
+    eprintln!("\n=== Visibility in Test::TestAction ===");
+    if let Some(vis) = index.visibility_for_scope("Test::TestAction") {
+        eprintln!("Direct defs:");
+        for (name, qname) in vis.direct_defs() {
+            eprintln!("  {} -> {}", name, qname);
+        }
+    }
+}
+
+/// Test redefines type refs are extracted for hover
+#[test]
+fn test_redefines_type_ref_extraction() {
+    let content = r#"
+package Test {
+    action def BaseAction {
+        action providePower;
+        action performSelfTest;
+    }
+    
+    part def Vehicle : BaseAction {
+        perform BaseAction::providePower redefines providePower;
+    }
+}
+"#;
+
+    let mut host = AnalysisHost::new();
+    host.set_file_content("test.sysml", content);
+    let analysis = host.analysis();
+    let file_id = analysis.get_file_id("test.sysml").unwrap();
+    let index = analysis.symbol_index();
+
+    eprintln!("\n=== Symbols ===");
+    for sym in index.symbols_in_file(file_id) {
+        eprintln!("{} (kind={:?})", sym.qualified_name, sym.kind);
+        if !sym.type_refs.is_empty() {
+            for tr in &sym.type_refs {
+                match tr {
+                    syster::hir::TypeRefKind::Simple(r) => {
+                        eprintln!(
+                            "  TypeRef: {} ({:?}) at L{}:{}-{}:{}",
+                            r.target,
+                            r.kind,
+                            r.start_line + 1,
+                            r.start_col,
+                            r.end_line + 1,
+                            r.end_col
+                        );
+                    }
+                    syster::hir::TypeRefKind::Chain(c) => {
+                        for p in &c.parts {
+                            eprintln!(
+                                "  Chain part: {} ({:?}) at L{}:{}-{}:{}",
+                                p.target,
+                                p.kind,
+                                p.start_line + 1,
+                                p.start_col,
+                                p.end_line + 1,
+                                p.end_col
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Check that the perform symbol has the redefines type_ref
+    let perform_sym = index
+        .symbols_in_file(file_id)
+        .into_iter()
+        .find(|s| s.qualified_name.contains("perform:"));
+    assert!(perform_sym.is_some(), "perform symbol should exist");
+    let perform_sym = perform_sym.unwrap();
+
+    // Should have redefines type ref
+    let has_redefines_ref = perform_sym.type_refs.iter().any(|tr| match tr {
+        syster::hir::TypeRefKind::Simple(r) => r.kind == syster::hir::RefKind::Redefines,
+        syster::hir::TypeRefKind::Chain(c) => c
+            .parts
+            .iter()
+            .any(|p| p.kind == syster::hir::RefKind::Redefines),
+    });
+    eprintln!("\nPerform symbol has Redefines ref: {}", has_redefines_ref);
+}
+
+/// Test allocation visibility with imports
+#[test]
+fn test_allocation_visibility_with_imports() {
+    let content = r#"
+package VehicleConfigurations {
+    package VehicleConfiguration_b {
+        package PartsTree {
+            part vehicle_b {
+                part engine {
+                    action generateTorque;
+                    part alternator {
+                        action generateElectricity;
+                    }
+                }
+            }
+        }
+    }
+}
+
+package VehicleLogicalConfiguration {
+    package PartsTree {
+        part vehicleLogical {
+            part torqueGenerator {
+                action generateTorque;
+            }
+            part electricalGenerator {
+                action generateElectricity;
+            }
+        }
+    }
+}
+
+package VehicleLogicalToPhysicalAllocation {
+    public import VehicleConfigurations::VehicleConfiguration_b::PartsTree::**;
+    public import VehicleLogicalConfiguration::PartsTree::*;
+
+    allocation vehicleLogicalToPhysicalAllocation : LogicalToPhysical
+        allocate vehicleLogical to vehicle_b {
+            allocate vehicleLogical.torqueGenerator to vehicle_b.engine;
+        }
+}
+"#;
+
+    let mut host = AnalysisHost::new();
+    host.set_file_content("test.sysml", content);
+    let analysis = host.analysis();
+    let file_id = analysis.get_file_id("test.sysml").unwrap();
+    let index = analysis.symbol_index();
+
+    // Check visibility in VehicleLogicalToPhysicalAllocation
+    eprintln!("=== Visibility in VehicleLogicalToPhysicalAllocation ===");
+    if let Some(vis) = index.visibility_for_scope("VehicleLogicalToPhysicalAllocation") {
+        eprintln!("Direct defs:");
+        for (name, qname) in vis.direct_defs() {
+            eprintln!("  {} -> {}", name, qname);
+        }
+        eprintln!("\nImports:");
+        for (name, qname) in vis.imports() {
+            eprintln!("  {} -> {}", name, qname);
+        }
+    } else {
+        eprintln!("No visibility found!");
+    }
+
+    // Check what symbols exist
+    eprintln!("\n=== Symbols in allocation scope ===");
+    for sym in index.symbols_in_file(file_id) {
+        if sym
+            .qualified_name
+            .contains("VehicleLogicalToPhysicalAllocation")
+        {
+            eprintln!("{} ({:?})", sym.qualified_name, sym.kind);
+            for tr in &sym.type_refs {
+                match tr {
+                    syster::hir::TypeRefKind::Simple(r) => {
+                        eprintln!("  TypeRef: {} -> {:?}", r.target, r.resolved_target);
+                    }
+                    syster::hir::TypeRefKind::Chain(c) => {
+                        for p in &c.parts {
+                            eprintln!("  Chain part: {} -> {:?}", p.target, p.resolved_target);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Run diagnostics
+    eprintln!("\n=== Diagnostics ===");
+    let diags = syster::hir::check_file(index, file_id);
+    for d in &diags {
+        eprintln!("  Line {}: {}", d.start_line + 1, d.message);
+    }
+}
+
 /// Minimal test case for sibling package import resolution
 #[test]
 fn test_sibling_package_import_resolution() {
@@ -407,8 +677,13 @@ fn test_short_name_visibility_via_import() {
                 type_refs: vec![],
                 doc: None,
                 is_public: true,
-view_data: None,
+                view_data: None,
                 metadata_annotations: vec![],
+                is_abstract: false,
+                is_variation: false,
+                is_readonly: false,
+                is_derived: false,
+                is_parallel: false,
             },
             HirSymbol {
                 name: Arc::from("kilogram"),
@@ -430,8 +705,13 @@ view_data: None,
                 type_refs: vec![],
                 doc: None,
                 is_public: true,
-view_data: None,
+                view_data: None,
                 metadata_annotations: vec![],
+                is_abstract: false,
+                is_variation: false,
+                is_readonly: false,
+                is_derived: false,
+                is_parallel: false,
             },
         ],
     );
@@ -460,8 +740,13 @@ view_data: None,
                 type_refs: vec![],
                 doc: None,
                 is_public: true,
-view_data: None,
+                view_data: None,
                 metadata_annotations: vec![],
+                is_abstract: false,
+                is_variation: false,
+                is_readonly: false,
+                is_derived: false,
+                is_parallel: false,
             },
             HirSymbol {
                 name: Arc::from("SI::*"),
@@ -483,8 +768,13 @@ view_data: None,
                 type_refs: vec![],
                 doc: None,
                 is_public: true,
-view_data: None,
+                view_data: None,
                 metadata_annotations: vec![],
+                is_abstract: false,
+                is_variation: false,
+                is_readonly: false,
+                is_derived: false,
+                is_parallel: false,
             },
         ],
     );
@@ -589,8 +879,13 @@ fn test_usage_inherits_type_members() {
                 type_refs: vec![],
                 doc: None,
                 is_public: true,
-view_data: None,
+                view_data: None,
                 metadata_annotations: vec![],
+                is_abstract: false,
+                is_variation: false,
+                is_readonly: false,
+                is_derived: false,
+                is_parallel: false,
             },
             // Definition: TransportPassenger
             HirSymbol {
@@ -613,8 +908,13 @@ view_data: None,
                 type_refs: vec![],
                 doc: None,
                 is_public: true,
-view_data: None,
+                view_data: None,
                 metadata_annotations: vec![],
+                is_abstract: false,
+                is_variation: false,
+                is_readonly: false,
+                is_derived: false,
+                is_parallel: false,
             },
             // Member of definition: getInVehicle_a
             HirSymbol {
@@ -637,8 +937,13 @@ view_data: None,
                 type_refs: vec![],
                 doc: None,
                 is_public: true,
-view_data: None,
+                view_data: None,
                 metadata_annotations: vec![],
+                is_abstract: false,
+                is_variation: false,
+                is_readonly: false,
+                is_derived: false,
+                is_parallel: false,
             },
             // Usage: transportPassenger : TransportPassenger
             HirSymbol {
@@ -661,8 +966,13 @@ view_data: None,
                 type_refs: vec![],
                 doc: None,
                 is_public: true,
-view_data: None,
+                view_data: None,
                 metadata_annotations: vec![],
+                is_abstract: false,
+                is_variation: false,
+                is_readonly: false,
+                is_derived: false,
+                is_parallel: false,
             },
             // Nested member: driverGetInVehicle (references getInVehicle_a)
             HirSymbol {
@@ -685,8 +995,13 @@ view_data: None,
                 type_refs: vec![],
                 doc: None,
                 is_public: true,
-view_data: None,
+                view_data: None,
                 metadata_annotations: vec![],
+                is_abstract: false,
+                is_variation: false,
+                is_readonly: false,
+                is_derived: false,
+                is_parallel: false,
             },
             // Nested action 'a' inside transportPassenger (no type annotation)
             HirSymbol {
@@ -709,8 +1024,13 @@ view_data: None,
                 type_refs: vec![],
                 doc: None,
                 is_public: true,
-view_data: None,
+                view_data: None,
                 metadata_annotations: vec![],
+                is_abstract: false,
+                is_variation: false,
+                is_readonly: false,
+                is_derived: false,
+                is_parallel: false,
             },
             // Action inside 'a' that references getInVehicle_a
             HirSymbol {
@@ -733,8 +1053,13 @@ view_data: None,
                 type_refs: vec![],
                 doc: None,
                 is_public: true,
-view_data: None,
+                view_data: None,
                 metadata_annotations: vec![],
+                is_abstract: false,
+                is_variation: false,
+                is_readonly: false,
+                is_derived: false,
+                is_parallel: false,
             },
         ],
     );
