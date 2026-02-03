@@ -239,6 +239,7 @@ fn build_signature(symbol: &HirSymbol) -> String {
         | SymbolKind::RequirementUsage
         | SymbolKind::ConstraintUsage
         | SymbolKind::StateUsage
+        | SymbolKind::TransitionUsage
         | SymbolKind::CalculationUsage
         | SymbolKind::ReferenceUsage
         | SymbolKind::OccurrenceUsage

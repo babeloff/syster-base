@@ -454,6 +454,7 @@ pub enum SymbolKind {
     RequirementUsage,
     ConstraintUsage,
     StateUsage,
+    TransitionUsage,
     CalculationUsage,
     ReferenceUsage,
     OccurrenceUsage,
@@ -514,7 +515,7 @@ impl SymbolKind {
             NormalizedUsageKind::Reference => Self::ReferenceUsage,
             NormalizedUsageKind::Occurrence => Self::OccurrenceUsage,
             NormalizedUsageKind::Flow => Self::FlowUsage,
-            NormalizedUsageKind::Transition => Self::Other, // Transitions map to Other
+            NormalizedUsageKind::Transition => Self::TransitionUsage,
             NormalizedUsageKind::Accept => Self::ActionUsage, // Accept payloads are action usages
             NormalizedUsageKind::End => Self::PortUsage,    // Connection endpoints are like ports
             NormalizedUsageKind::Fork => Self::ActionUsage, // Fork nodes are action usages
@@ -568,6 +569,7 @@ impl SymbolKind {
             Self::RequirementUsage => "Requirement",
             Self::ConstraintUsage => "Constraint",
             Self::StateUsage => "State",
+            Self::TransitionUsage => "Transition",
             Self::CalculationUsage => "Calc",
             Self::ReferenceUsage => "Ref",
             Self::OccurrenceUsage => "Occurrence",
@@ -633,7 +635,7 @@ impl SymbolKind {
             NormalizedUsageKind::Reference => Self::ReferenceUsage,
             NormalizedUsageKind::Occurrence => Self::OccurrenceUsage,
             NormalizedUsageKind::Flow => Self::FlowUsage,
-            NormalizedUsageKind::Transition => Self::Other, // Transitions map to Other
+            NormalizedUsageKind::Transition => Self::TransitionUsage,
             NormalizedUsageKind::Accept => Self::ActionUsage, // Accept payloads are action usages
             NormalizedUsageKind::End => Self::PortUsage,    // Connection endpoints are like ports
             NormalizedUsageKind::Fork => Self::ActionUsage, // Fork nodes are action usages

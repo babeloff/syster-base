@@ -69,6 +69,7 @@ impl From<SymbolKind> for TokenType {
             | SymbolKind::RequirementUsage
             | SymbolKind::ConstraintUsage
             | SymbolKind::StateUsage
+            | SymbolKind::TransitionUsage
             | SymbolKind::CalculationUsage
             | SymbolKind::ReferenceUsage
             | SymbolKind::OccurrenceUsage
