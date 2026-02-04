@@ -750,6 +750,17 @@ impl Definition {
             .any(|t| t.kind() == SyntaxKind::VARIATION_KW)
     }
 
+    /// Check if this is an individual definition.
+    /// Per SysML v2 Spec: `individual` indicates a definition that classifies
+    /// exactly one instance (a singleton).
+    /// e.g., `individual part def Earth;`
+    pub fn is_individual(&self) -> bool {
+        self.0
+            .children_with_tokens()
+            .filter_map(|e| e.into_token())
+            .any(|t| t.kind() == SyntaxKind::INDIVIDUAL_KW)
+    }
+
     pub fn definition_kind(&self) -> Option<DefinitionKind> {
         for token in self.0.children_with_tokens().filter_map(|e| e.into_token()) {
             match token.kind() {
@@ -976,6 +987,71 @@ impl Usage {
             .children_with_tokens()
             .filter_map(|e| e.into_token())
             .any(|t| t.kind() == SyntaxKind::PARALLEL_KW)
+    }
+
+    /// Check if this is an individual usage.
+    /// Per SysML v2 Spec: `individual` indicates a usage that represents
+    /// exactly one instance (a singleton).
+    /// e.g., `individual part earth : Earth;`
+    pub fn is_individual(&self) -> bool {
+        self.0
+            .children_with_tokens()
+            .filter_map(|e| e.into_token())
+            .any(|t| t.kind() == SyntaxKind::INDIVIDUAL_KW)
+    }
+
+    /// Check if this is an end feature.
+    /// Per SysML v2 Spec §7.3.4.3: `end` indicates a feature that represents
+    /// an end of a connector or association.
+    /// e.g., `end part wheel : Wheel[4];`
+    pub fn is_end(&self) -> bool {
+        self.0
+            .children_with_tokens()
+            .filter_map(|e| e.into_token())
+            .any(|t| t.kind() == SyntaxKind::END_KW)
+    }
+
+    /// Check if this feature has a default value binding.
+    /// Per SysML v2 Spec: `default` indicates the feature provides a default value.
+    /// e.g., `attribute def Color { default attribute rgb : RGB; }`
+    pub fn is_default(&self) -> bool {
+        self.0
+            .children_with_tokens()
+            .filter_map(|e| e.into_token())
+            .any(|t| t.kind() == SyntaxKind::DEFAULT_KW)
+    }
+
+    /// Check if this feature is ordered.
+    /// Per SysML v2 Spec §7.3.3.3: `ordered` indicates that multiple values
+    /// of the feature have a defined sequence.
+    /// e.g., `part ordered wheels : Wheel[4];`
+    pub fn is_ordered(&self) -> bool {
+        self.0
+            .children_with_tokens()
+            .filter_map(|e| e.into_token())
+            .any(|t| t.kind() == SyntaxKind::ORDERED_KW)
+    }
+
+    /// Check if this feature is nonunique.
+    /// Per SysML v2 Spec §7.3.3.3: `nonunique` indicates that multiple values
+    /// of the feature may be duplicates (not unique).
+    /// e.g., `attribute nonunique scores : Integer[*];`
+    pub fn is_nonunique(&self) -> bool {
+        self.0
+            .children_with_tokens()
+            .filter_map(|e| e.into_token())
+            .any(|t| t.kind() == SyntaxKind::NONUNIQUE_KW)
+    }
+
+    /// Check if this is a portion usage.
+    /// Per SysML v2 Spec: `portion` indicates that the usage represents
+    /// a portion/slice of the containing occurrence.
+    /// e.g., `portion part fuelLoad : Fuel;`
+    pub fn is_portion(&self) -> bool {
+        self.0
+            .children_with_tokens()
+            .filter_map(|e| e.into_token())
+            .any(|t| t.kind() == SyntaxKind::PORTION_KW)
     }
 
     pub fn direction(&self) -> Option<Direction> {

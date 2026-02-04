@@ -721,6 +721,18 @@ pub struct Element {
     pub is_readonly: bool,
     /// Whether this state is parallel (SysML).
     pub is_parallel: bool,
+    /// Whether this is an individual (singleton occurrence).
+    pub is_individual: bool,
+    /// Whether this is an end feature (connector endpoint).
+    pub is_end: bool,
+    /// Whether this has a default value.
+    pub is_default: bool,
+    /// Whether values are ordered.
+    pub is_ordered: bool,
+    /// Whether values are nonunique (can have duplicates).
+    pub is_nonunique: bool,
+    /// Whether this is a portion (slice of occurrence).
+    pub is_portion: bool,
     /// Visibility (public, private, protected).
     pub visibility: Visibility,
     /// Additional properties as key-value pairs (IndexMap preserves order).
@@ -744,6 +756,12 @@ impl Element {
             is_derived: false,
             is_readonly: false,
             is_parallel: false,
+            is_individual: false,
+            is_end: false,
+            is_default: false,
+            is_ordered: false,
+            is_nonunique: false,
+            is_portion: false,
             visibility: Visibility::Public,
             properties: IndexMap::new(),
         }
@@ -818,6 +836,48 @@ impl Element {
         self.is_parallel = value;
         self.properties
             .insert(Arc::from("isParallel"), PropertyValue::Boolean(value));
+    }
+
+    /// Set isIndividual (syncs to property for roundtrip fidelity).
+    pub fn set_individual(&mut self, value: bool) {
+        self.is_individual = value;
+        self.properties
+            .insert(Arc::from("isIndividual"), PropertyValue::Boolean(value));
+    }
+
+    /// Set isEnd (syncs to property for roundtrip fidelity).
+    pub fn set_end(&mut self, value: bool) {
+        self.is_end = value;
+        self.properties
+            .insert(Arc::from("isEnd"), PropertyValue::Boolean(value));
+    }
+
+    /// Set isDefault (syncs to property for roundtrip fidelity).
+    pub fn set_default(&mut self, value: bool) {
+        self.is_default = value;
+        self.properties
+            .insert(Arc::from("isDefault"), PropertyValue::Boolean(value));
+    }
+
+    /// Set isOrdered (syncs to property for roundtrip fidelity).
+    pub fn set_ordered(&mut self, value: bool) {
+        self.is_ordered = value;
+        self.properties
+            .insert(Arc::from("isOrdered"), PropertyValue::Boolean(value));
+    }
+
+    /// Set isNonunique (syncs to property for roundtrip fidelity).
+    pub fn set_nonunique(&mut self, value: bool) {
+        self.is_nonunique = value;
+        self.properties
+            .insert(Arc::from("isNonunique"), PropertyValue::Boolean(value));
+    }
+
+    /// Set isPortion (syncs to property for roundtrip fidelity).
+    pub fn set_portion(&mut self, value: bool) {
+        self.is_portion = value;
+        self.properties
+            .insert(Arc::from("isPortion"), PropertyValue::Boolean(value));
     }
 }
 

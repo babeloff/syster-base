@@ -316,6 +316,12 @@ mod tests {
             is_readonly: false,
             is_derived: false,
             is_parallel: false,
+            is_individual: false,
+            is_end: false,
+            is_default: false,
+            is_ordered: false,
+            is_nonunique: false,
+            is_portion: false,
             direction: None,
             multiplicity: None,
         }

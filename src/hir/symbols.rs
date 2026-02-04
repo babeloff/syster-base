@@ -412,6 +412,18 @@ pub struct HirSymbol {
     pub is_derived: bool,
     /// Whether this symbol is parallel (for state usages)
     pub is_parallel: bool,
+    /// Whether this symbol is individual (singleton occurrence)
+    pub is_individual: bool,
+    /// Whether this symbol is an end feature (connector endpoint)
+    pub is_end: bool,
+    /// Whether this symbol has a default value
+    pub is_default: bool,
+    /// Whether this symbol's values are ordered
+    pub is_ordered: bool,
+    /// Whether this symbol's values are nonunique (can have duplicates)
+    pub is_nonunique: bool,
+    /// Whether this symbol is a portion (slice of occurrence)
+    pub is_portion: bool,
     /// Direction (in, out, inout) for ports and parameters
     pub direction: Option<Direction>,
     /// Multiplicity bounds [lower..upper]
@@ -922,6 +934,12 @@ fn extract_from_normalized(
                     is_readonly: false,
                     is_derived: false,
                     is_parallel: false,
+                    is_individual: false,
+                    is_end: false,
+                    is_default: false,
+                    is_ordered: false,
+                    is_nonunique: false,
+                    is_portion: false,
                     direction: None,
                     multiplicity: None,
                 });
@@ -1010,6 +1028,12 @@ fn extract_from_normalized_package(
         is_readonly: false,
         is_derived: false,
         is_parallel: false,
+        is_individual: false,
+        is_end: false,
+        is_default: false,
+        is_ordered: false,
+        is_nonunique: false,
+        is_portion: false,
         direction: None,
         multiplicity: None,
     });
@@ -1216,6 +1240,12 @@ fn extract_from_normalized_definition(
         is_readonly: false,
         is_derived: false,
         is_parallel: false,
+        is_individual: false,
+        is_end: false,
+        is_default: false,
+        is_ordered: false,
+        is_nonunique: false,
+        is_portion: false,
         direction: None,
         multiplicity: None,
     });
@@ -1416,6 +1446,12 @@ fn extract_from_normalized_usage(
                 is_readonly: usage.is_readonly,
                 is_derived: usage.is_derived,
                 is_parallel: usage.is_parallel,
+                is_individual: usage.is_individual,
+                is_end: usage.is_end,
+                is_default: usage.is_default,
+                is_ordered: usage.is_ordered,
+                is_nonunique: usage.is_nonunique,
+                is_portion: usage.is_portion,
                 direction: usage.direction,
                 multiplicity: usage.multiplicity,
             };
@@ -1543,6 +1579,12 @@ fn extract_from_normalized_usage(
         is_readonly: usage.is_readonly,
         is_derived: usage.is_derived,
         is_parallel: usage.is_parallel,
+        is_individual: usage.is_individual,
+        is_end: usage.is_end,
+        is_default: usage.is_default,
+        is_ordered: usage.is_ordered,
+        is_nonunique: usage.is_nonunique,
+        is_portion: usage.is_portion,
         direction: usage.direction,
         multiplicity: usage.multiplicity,
     });
@@ -1620,6 +1662,12 @@ fn extract_from_normalized_import(
         is_readonly: false,
         is_derived: false,
         is_parallel: false,
+        is_individual: false,
+        is_end: false,
+        is_default: false,
+        is_ordered: false,
+        is_nonunique: false,
+        is_portion: false,
         direction: None,
         multiplicity: None,
     });
@@ -1683,6 +1731,12 @@ fn extract_from_normalized_alias(
         is_readonly: false,
         is_derived: false,
         is_parallel: false,
+        is_individual: false,
+        is_end: false,
+        is_default: false,
+        is_ordered: false,
+        is_nonunique: false,
+        is_portion: false,
         direction: None,
         multiplicity: None,
     });
@@ -1749,6 +1803,12 @@ fn extract_from_normalized_comment(
         is_readonly: false,
         is_derived: false,
         is_parallel: false,
+        is_individual: false,
+        is_end: false,
+        is_default: false,
+        is_ordered: false,
+        is_nonunique: false,
+        is_portion: false,
         direction: None,
         multiplicity: None,
     });
@@ -1908,6 +1968,12 @@ fn extract_from_normalized_dependency(
             is_readonly: false,
             is_derived: false,
             is_parallel: false,
+            is_individual: false,
+            is_end: false,
+            is_default: false,
+            is_ordered: false,
+            is_nonunique: false,
+            is_portion: false,
             direction: None,
             multiplicity: None,
         });
@@ -1943,6 +2009,12 @@ fn extract_from_normalized_dependency(
             is_readonly: false,
             is_derived: false,
             is_parallel: false,
+            is_individual: false,
+            is_end: false,
+            is_default: false,
+            is_ordered: false,
+            is_nonunique: false,
+            is_portion: false,
             direction: None,
             multiplicity: None,
         });

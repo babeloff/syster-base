@@ -145,6 +145,12 @@ pub fn symbols_from_model(model: &Model) -> Vec<HirSymbol> {
             is_readonly: element.is_readonly,
             is_derived: element.is_derived,
             is_parallel: element.is_parallel,
+            is_individual: element.is_individual,
+            is_end: element.is_end,
+            is_default: element.is_default,
+            is_ordered: element.is_ordered,
+            is_nonunique: element.is_nonunique,
+            is_portion: element.is_portion,
             direction: None,    // TODO: Extract from element if available
             multiplicity: None, // TODO: Extract from element if available
         };

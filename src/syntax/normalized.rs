@@ -131,6 +131,8 @@ pub struct NormalizedDefinition {
     pub is_abstract: bool,
     /// Whether the definition has the `variation` keyword
     pub is_variation: bool,
+    /// Whether the definition has the `individual` keyword (singleton)
+    pub is_individual: bool,
 }
 
 /// Multiplicity bounds (lower, upper) where None means unbounded (*)
@@ -165,6 +167,18 @@ pub struct NormalizedUsage {
     pub is_derived: bool,
     /// Whether the usage (for state) has the `parallel` keyword
     pub is_parallel: bool,
+    /// Whether the usage has the `individual` keyword (singleton)
+    pub is_individual: bool,
+    /// Whether the usage has the `end` keyword (connector end)
+    pub is_end: bool,
+    /// Whether the usage has the `default` keyword
+    pub is_default: bool,
+    /// Whether the usage has the `ordered` keyword
+    pub is_ordered: bool,
+    /// Whether the usage has the `nonunique` keyword
+    pub is_nonunique: bool,
+    /// Whether the usage has the `portion` keyword
+    pub is_portion: bool,
     /// Direction (in, out, inout) for ports and parameters
     pub direction: Option<Direction>,
     /// Multiplicity bounds [lower..upper]
@@ -518,6 +532,12 @@ impl NormalizedElement {
                     is_readonly: false,
                     is_derived: false,
                     is_parallel: false,
+                    is_individual: false,
+                    is_end: false,
+                    is_default: false,
+                    is_ordered: false,
+                    is_nonunique: false,
+                    is_portion: false,
                     direction: None,
                     multiplicity: None,
                 })
@@ -770,6 +790,7 @@ impl NormalizedDefinition {
             children,
             is_abstract: def.is_abstract(),
             is_variation: def.is_variation(),
+            is_individual: def.is_individual(),
         }
     }
 }
@@ -1174,6 +1195,12 @@ impl NormalizedUsage {
                         is_readonly: false,
                         is_derived: false,
                         is_parallel: false,
+                        is_individual: false,
+                        is_end: true, // This is an endpoint
+                        is_default: false,
+                        is_ordered: false,
+                        is_nonunique: false,
+                        is_portion: false,
                         direction: None,
                         multiplicity: None,
                     }));
@@ -1381,6 +1408,12 @@ impl NormalizedUsage {
                     is_readonly: false,
                     is_derived: false,
                     is_parallel: false,
+                    is_individual: false,
+                    is_end: false,
+                    is_default: false,
+                    is_ordered: false,
+                    is_nonunique: false,
+                    is_portion: false,
                     direction: None,
                     multiplicity: None,
                 }));
@@ -1506,6 +1539,12 @@ impl NormalizedUsage {
             is_readonly: usage.is_readonly(),
             is_derived: usage.is_derived(),
             is_parallel: usage.is_parallel(),
+            is_individual: usage.is_individual(),
+            is_end: usage.is_end(),
+            is_default: usage.is_default(),
+            is_ordered: usage.is_ordered(),
+            is_nonunique: usage.is_nonunique(),
+            is_portion: usage.is_portion(),
             direction: usage.direction(),
             multiplicity: usage
                 .multiplicity()
@@ -1551,6 +1590,12 @@ impl NormalizedUsage {
             is_readonly: false,
             is_derived: false,
             is_parallel: false,
+            is_individual: false,
+            is_end: false,
+            is_default: false,
+            is_ordered: false,
+            is_nonunique: false,
+            is_portion: false,
             direction: None,
             multiplicity: None,
         }
@@ -1666,6 +1711,12 @@ impl NormalizedUsage {
             is_readonly: false,
             is_derived: false,
             is_parallel: false,
+            is_individual: false,
+            is_end: false,
+            is_default: false,
+            is_ordered: false,
+            is_nonunique: false,
+            is_portion: false,
             direction: None,
             multiplicity: None,
         }
@@ -1778,6 +1829,12 @@ impl NormalizedUsage {
                 is_readonly: false,
                 is_derived: false,
                 is_parallel: false,
+                is_individual: false,
+                is_end: false,
+                is_default: false,
+                is_ordered: false,
+                is_nonunique: false,
+                is_portion: false,
                 direction: None,
                 multiplicity: None,
             }));
@@ -1798,6 +1855,12 @@ impl NormalizedUsage {
             is_readonly: false,
             is_derived: false,
             is_parallel: false,
+            is_individual: false,
+            is_end: false,
+            is_default: false,
+            is_ordered: false,
+            is_nonunique: false,
+            is_portion: false,
             direction: None,
             multiplicity: None,
         }
@@ -1865,6 +1928,12 @@ impl NormalizedUsage {
             is_readonly: false,
             is_derived: false,
             is_parallel: false,
+            is_individual: false,
+            is_end: false,
+            is_default: false,
+            is_ordered: false,
+            is_nonunique: false,
+            is_portion: false,
             direction: None,
             multiplicity: None,
         }
@@ -1927,6 +1996,12 @@ impl NormalizedUsage {
             is_readonly: false,
             is_derived: false,
             is_parallel: false,
+            is_individual: false,
+            is_end: false,
+            is_default: false,
+            is_ordered: false,
+            is_nonunique: false,
+            is_portion: false,
             direction: None,
             multiplicity: None,
         }
@@ -1983,6 +2058,12 @@ impl NormalizedUsage {
             is_readonly: false,
             is_derived: false,
             is_parallel: false,
+            is_individual: false,
+            is_end: false,
+            is_default: false,
+            is_ordered: false,
+            is_nonunique: false,
+            is_portion: false,
             direction: None,
             multiplicity: None,
         }
@@ -2076,6 +2157,12 @@ impl NormalizedUsage {
                 is_readonly: false,
                 is_derived: false,
                 is_parallel: false,
+                is_individual: false,
+                is_end: false,
+                is_default: false,
+                is_ordered: false,
+                is_nonunique: false,
+                is_portion: false,
                 direction: None,
                 multiplicity: None,
             }));
@@ -2107,6 +2194,12 @@ impl NormalizedUsage {
             is_readonly: false,
             is_derived: false,
             is_parallel: false,
+            is_individual: false,
+            is_end: false,
+            is_default: false,
+            is_ordered: false,
+            is_nonunique: false,
+            is_portion: false,
             direction: None,
             multiplicity: None,
         }
@@ -2164,6 +2257,12 @@ impl NormalizedUsage {
             is_readonly: false,
             is_derived: false,
             is_parallel: false,
+            is_individual: false,
+            is_end: false,
+            is_default: false,
+            is_ordered: false,
+            is_nonunique: false,
+            is_portion: false,
             direction: None,
             multiplicity: None,
         }
@@ -2217,6 +2316,12 @@ impl NormalizedUsage {
             is_readonly: false,
             is_derived: false,
             is_parallel: false,
+            is_individual: false,
+            is_end: false,
+            is_default: false,
+            is_ordered: false,
+            is_nonunique: false,
+            is_portion: false,
             direction: None,
             multiplicity: None,
         }
@@ -2259,6 +2364,12 @@ impl NormalizedUsage {
                 is_readonly: false,
                 is_derived: false,
                 is_parallel: false,
+                is_individual: false,
+                is_end: false,
+                is_default: false,
+                is_ordered: false,
+                is_nonunique: false,
+                is_portion: false,
                 direction: None,
                 multiplicity: None,
             }));
@@ -2286,6 +2397,12 @@ impl NormalizedUsage {
             is_readonly: false,
             is_derived: false,
             is_parallel: false,
+            is_individual: false,
+            is_end: false,
+            is_default: false,
+            is_ordered: false,
+            is_nonunique: false,
+            is_portion: false,
             direction: None,
             multiplicity: None,
         }
@@ -2360,6 +2477,12 @@ impl NormalizedUsage {
             is_readonly: false,
             is_derived: false,
             is_parallel: false,
+            is_individual: false,
+            is_end: false,
+            is_default: false,
+            is_ordered: false,
+            is_nonunique: false,
+            is_portion: false,
             direction: None,
             multiplicity: None,
         }
@@ -2423,6 +2546,12 @@ impl NormalizedUsage {
             is_readonly: false,
             is_derived: false,
             is_parallel: false,
+            is_individual: false,
+            is_end: false,
+            is_default: false,
+            is_ordered: false,
+            is_nonunique: false,
+            is_portion: false,
             direction: None,
             multiplicity: None,
         }
