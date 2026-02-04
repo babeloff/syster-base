@@ -281,6 +281,36 @@ mod reader {
             element.set_parallel(*is_parallel);
         }
 
+        // Get isIndividual
+        if let Some(Value::Bool(is_individual)) = obj.get("isIndividual") {
+            element.set_individual(*is_individual);
+        }
+
+        // Get isEnd
+        if let Some(Value::Bool(is_end)) = obj.get("isEnd") {
+            element.set_end(*is_end);
+        }
+
+        // Get isDefault
+        if let Some(Value::Bool(is_default)) = obj.get("isDefault") {
+            element.set_default(*is_default);
+        }
+
+        // Get isOrdered
+        if let Some(Value::Bool(is_ordered)) = obj.get("isOrdered") {
+            element.set_ordered(*is_ordered);
+        }
+
+        // Get isNonunique
+        if let Some(Value::Bool(is_nonunique)) = obj.get("isNonunique") {
+            element.set_nonunique(*is_nonunique);
+        }
+
+        // Get isPortion
+        if let Some(Value::Bool(is_portion)) = obj.get("isPortion") {
+            element.set_portion(*is_portion);
+        }
+
         // Get documentation (body text)
         if let Some(Value::String(doc)) = obj.get("documentation").or_else(|| obj.get("body")) {
             element.documentation = Some(Arc::from(doc.as_str()));
@@ -323,6 +353,12 @@ mod reader {
                     | "isDerived"
                     | "isReadOnly"
                     | "isParallel"
+                    | "isIndividual"
+                    | "isEnd"
+                    | "isDefault"
+                    | "isOrdered"
+                    | "isNonunique"
+                    | "isPortion"
                     | "documentation"
                     | "body"
                     | "owner"
@@ -513,6 +549,36 @@ mod writer {
         // isParallel (only if true)
         if element.is_parallel {
             obj.insert("isParallel".to_string(), json!(true));
+        }
+
+        // isIndividual (only if true)
+        if element.is_individual {
+            obj.insert("isIndividual".to_string(), json!(true));
+        }
+
+        // isEnd (only if true)
+        if element.is_end {
+            obj.insert("isEnd".to_string(), json!(true));
+        }
+
+        // isDefault (only if true)
+        if element.is_default {
+            obj.insert("isDefault".to_string(), json!(true));
+        }
+
+        // isOrdered (only if true)
+        if element.is_ordered {
+            obj.insert("isOrdered".to_string(), json!(true));
+        }
+
+        // isNonunique (only if true)
+        if element.is_nonunique {
+            obj.insert("isNonunique".to_string(), json!(true));
+        }
+
+        // isPortion (only if true)
+        if element.is_portion {
+            obj.insert("isPortion".to_string(), json!(true));
         }
 
         // documentation

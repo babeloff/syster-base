@@ -1240,7 +1240,7 @@ fn extract_from_normalized_definition(
         is_readonly: false,
         is_derived: false,
         is_parallel: false,
-        is_individual: false,
+        is_individual: def.is_individual,
         is_end: false,
         is_default: false,
         is_ordered: false,

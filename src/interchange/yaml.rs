@@ -247,6 +247,24 @@ mod reader {
         if let Some(val) = map.get("isParallel") {
             element.set_parallel(val.as_bool().unwrap_or(false));
         }
+        if let Some(val) = map.get("isIndividual") {
+            element.set_individual(val.as_bool().unwrap_or(false));
+        }
+        if let Some(val) = map.get("isEnd") {
+            element.set_end(val.as_bool().unwrap_or(false));
+        }
+        if let Some(val) = map.get("isDefault") {
+            element.set_default(val.as_bool().unwrap_or(false));
+        }
+        if let Some(val) = map.get("isOrdered") {
+            element.set_ordered(val.as_bool().unwrap_or(false));
+        }
+        if let Some(val) = map.get("isNonunique") {
+            element.set_nonunique(val.as_bool().unwrap_or(false));
+        }
+        if let Some(val) = map.get("isPortion") {
+            element.set_portion(val.as_bool().unwrap_or(false));
+        }
 
         // Parse owner reference
         if let Some(owner_id) = get_ref_id(map, "owner") {
@@ -281,6 +299,12 @@ mod reader {
             "isDerived",
             "isReadOnly",
             "isParallel",
+            "isIndividual",
+            "isEnd",
+            "isDefault",
+            "isOrdered",
+            "isNonunique",
+            "isPortion",
             "owner",
             "ownedMember",
             "source",
@@ -540,6 +564,24 @@ mod writer {
         }
         if element.is_parallel {
             map.insert(Value::String("isParallel".to_string()), Value::Bool(true));
+        }
+        if element.is_individual {
+            map.insert(Value::String("isIndividual".to_string()), Value::Bool(true));
+        }
+        if element.is_end {
+            map.insert(Value::String("isEnd".to_string()), Value::Bool(true));
+        }
+        if element.is_default {
+            map.insert(Value::String("isDefault".to_string()), Value::Bool(true));
+        }
+        if element.is_ordered {
+            map.insert(Value::String("isOrdered".to_string()), Value::Bool(true));
+        }
+        if element.is_nonunique {
+            map.insert(Value::String("isNonunique".to_string()), Value::Bool(true));
+        }
+        if element.is_portion {
+            map.insert(Value::String("isPortion".to_string()), Value::Bool(true));
         }
 
         // documentation

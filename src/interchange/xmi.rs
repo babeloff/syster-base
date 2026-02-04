@@ -264,10 +264,15 @@ mod reader {
             let mut is_derived: Option<bool> = None;
             let mut is_readonly: Option<bool> = None;
             let mut is_parallel: Option<bool> = None;
+            let mut is_individual: Option<bool> = None;
+            let mut is_end: Option<bool> = None;
+            let mut is_default: Option<bool> = None;
+            let mut is_ordered: Option<bool> = None;
+            let mut is_nonunique: Option<bool> = None;
+            let mut is_portion: Option<bool> = None;
             let mut is_standard: Option<bool> = None;
             let mut is_composite: Option<bool> = None;
             let mut is_unique: Option<bool> = None;
-            let mut is_ordered: Option<bool> = None;
             let mut body: Option<String> = None;
             let mut href: Option<String> = None;
             let mut extra_attrs: Vec<(String, String)> = Vec::new();
@@ -298,10 +303,15 @@ mod reader {
                     "isDerived" => is_derived = Some(value == "true"),
                     "isReadOnly" => is_readonly = Some(value == "true"),
                     "isParallel" => is_parallel = Some(value == "true"),
+                    "isIndividual" => is_individual = Some(value == "true"),
+                    "isEnd" => is_end = Some(value == "true"),
+                    "isDefault" => is_default = Some(value == "true"),
+                    "isOrdered" => is_ordered = Some(value == "true"),
+                    "isNonunique" => is_nonunique = Some(value == "true"),
+                    "isPortion" => is_portion = Some(value == "true"),
                     "isStandard" => is_standard = Some(value == "true"),
                     "isComposite" => is_composite = Some(value == "true"),
                     "isUnique" => is_unique = Some(value == "true"),
-                    "isOrdered" => is_ordered = Some(value == "true"),
                     "body" => body = Some(value),
                     "href" => href = Some(value),
                     // Relationship source references - store as property AND use for relationship
@@ -374,6 +384,24 @@ mod reader {
                 if let Some(val) = is_parallel {
                     element.set_parallel(val);
                 }
+                if let Some(val) = is_individual {
+                    element.set_individual(val);
+                }
+                if let Some(val) = is_end {
+                    element.set_end(val);
+                }
+                if let Some(val) = is_default {
+                    element.set_default(val);
+                }
+                if let Some(val) = is_ordered {
+                    element.set_ordered(val);
+                }
+                if let Some(val) = is_nonunique {
+                    element.set_nonunique(val);
+                }
+                if let Some(val) = is_portion {
+                    element.set_portion(val);
+                }
                 if let Some(val) = is_standard {
                     element
                         .properties
@@ -388,11 +416,6 @@ mod reader {
                     element
                         .properties
                         .insert(Arc::from("isUnique"), PropertyValue::Boolean(val));
-                }
-                if let Some(val) = is_ordered {
-                    element
-                        .properties
-                        .insert(Arc::from("isOrdered"), PropertyValue::Boolean(val));
                 }
 
                 // Store documentation body
@@ -922,6 +945,31 @@ mod writer {
                 elem_start.push_attribute(("isParallel", if *v { "true" } else { "false" }));
             }
             if let Some(super::super::model::PropertyValue::Boolean(v)) =
+                element.properties.get("isIndividual")
+            {
+                elem_start.push_attribute(("isIndividual", if *v { "true" } else { "false" }));
+            }
+            if let Some(super::super::model::PropertyValue::Boolean(v)) =
+                element.properties.get("isEnd")
+            {
+                elem_start.push_attribute(("isEnd", if *v { "true" } else { "false" }));
+            }
+            if let Some(super::super::model::PropertyValue::Boolean(v)) =
+                element.properties.get("isDefault")
+            {
+                elem_start.push_attribute(("isDefault", if *v { "true" } else { "false" }));
+            }
+            if let Some(super::super::model::PropertyValue::Boolean(v)) =
+                element.properties.get("isNonunique")
+            {
+                elem_start.push_attribute(("isNonunique", if *v { "true" } else { "false" }));
+            }
+            if let Some(super::super::model::PropertyValue::Boolean(v)) =
+                element.properties.get("isPortion")
+            {
+                elem_start.push_attribute(("isPortion", if *v { "true" } else { "false" }));
+            }
+            if let Some(super::super::model::PropertyValue::Boolean(v)) =
                 element.properties.get("isUnique")
             {
                 elem_start.push_attribute(("isUnique", if *v { "true" } else { "false" }));
@@ -964,10 +1012,15 @@ mod writer {
                     || k == "isDerived"
                     || k == "isReadOnly"
                     || k == "isParallel"
+                    || k == "isIndividual"
+                    || k == "isEnd"
+                    || k == "isDefault"
+                    || k == "isOrdered"
+                    || k == "isNonunique"
+                    || k == "isPortion"
                     || k == "isStandard"
                     || k == "isComposite"
                     || k == "isUnique"
-                    || k == "isOrdered"
                     || k == "href"
                     || k == "href_target_name"
                     || k.starts_with("_")
