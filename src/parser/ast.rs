@@ -1686,20 +1686,9 @@ impl StateSubaction {
     first_child_method!(name, Name);
     first_child_method!(body, NamespaceBody);
 
-    /// Check if this is an 'entry' subaction
-    pub fn is_entry(&self) -> bool {
-        self.kind() == Some(SyntaxKind::ENTRY_KW)
-    }
-
-    /// Check if this is a 'do' subaction
-    pub fn is_do(&self) -> bool {
-        self.kind() == Some(SyntaxKind::DO_KW)
-    }
-
-    /// Check if this is an 'exit' subaction
-    pub fn is_exit(&self) -> bool {
-        self.kind() == Some(SyntaxKind::EXIT_KW)
-    }
+    has_token_method!(is_entry, ENTRY_KW, "entry action initial;");
+    has_token_method!(is_do, DO_KW, "do action running;");
+    has_token_method!(is_exit, EXIT_KW, "exit action cleanup;");
 }
 
 // ============================================================================
@@ -1729,25 +1718,10 @@ impl ControlNode {
     first_child_method!(name, Name);
     first_child_method!(body, NamespaceBody);
 
-    /// Check if this is a 'fork' node
-    pub fn is_fork(&self) -> bool {
-        self.kind() == Some(SyntaxKind::FORK_KW)
-    }
-
-    /// Check if this is a 'join' node
-    pub fn is_join(&self) -> bool {
-        self.kind() == Some(SyntaxKind::JOIN_KW)
-    }
-
-    /// Check if this is a 'merge' node
-    pub fn is_merge(&self) -> bool {
-        self.kind() == Some(SyntaxKind::MERGE_KW)
-    }
-
-    /// Check if this is a 'decide' node
-    pub fn is_decide(&self) -> bool {
-        self.kind() == Some(SyntaxKind::DECIDE_KW)
-    }
+    has_token_method!(is_fork, FORK_KW, "fork forkNode;");
+    has_token_method!(is_join, JOIN_KW, "join joinNode;");
+    has_token_method!(is_merge, MERGE_KW, "merge mergeNode;");
+    has_token_method!(is_decide, DECIDE_KW, "decide decideNode;");
 }
 
 // ============================================================================
