@@ -92,6 +92,79 @@ macro_rules! children_method {
     };
 }
 
+/// Macro to generate a method that gets the first child node of a type after a specific keyword.
+///
+/// This is a common pattern for things like `via port` or `by target` clauses.
+///
+/// Usage:
+/// ```ignore
+/// impl MyStruct {
+///     child_after_keyword_method!(via, QualifiedName, VIA_KW, "get the 'via' target port");
+///     child_after_keyword_method!(by_target, QualifiedName, BY_KW, "get the 'by' target");
+/// }
+/// ```
+macro_rules! child_after_keyword_method {
+    ($name:ident, $type:ident, $keyword:ident, $doc:literal) => {
+        #[doc = $doc]
+        pub fn $name(&self) -> Option<$type> {
+            let mut seen_keyword = false;
+            for child in self.0.children_with_tokens() {
+                match child {
+                    rowan::NodeOrToken::Token(t) if t.kind() == SyntaxKind::$keyword => {
+                        seen_keyword = true;
+                    }
+                    rowan::NodeOrToken::Node(n) if seen_keyword => {
+                        if let Some(result) = $type::cast(n) {
+                            return Some(result);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            None
+        }
+    };
+}
+
+/// Macro to generate `members()` method that delegates to `body().members()`.
+///
+/// Usage:
+/// ```ignore
+/// impl MyStruct {
+///     body_members_method!();
+/// }
+/// ```
+macro_rules! body_members_method {
+    () => {
+        /// Get members from the body.
+        pub fn members(&self) -> impl Iterator<Item = NamespaceMember> + '_ {
+            self.body()
+                .into_iter()
+                .flat_map(|body| body.members().collect::<Vec<_>>())
+        }
+    };
+}
+
+/// Helper to collect prefix metadata from preceding siblings.
+///
+/// PREFIX_METADATA nodes precede definitions/usages in the source.
+fn collect_prefix_metadata(node: &SyntaxNode) -> Vec<PrefixMetadata> {
+    let mut result = Vec::new();
+    let mut current = node.prev_sibling();
+    while let Some(sibling) = current {
+        if sibling.kind() == SyntaxKind::PREFIX_METADATA {
+            if let Some(pm) = PrefixMetadata::cast(sibling.clone()) {
+                result.push(pm);
+            }
+            current = sibling.prev_sibling();
+        } else {
+            break;
+        }
+    }
+    result.reverse();
+    result
+}
+
 /// Trait for AST nodes that wrap a SyntaxNode
 pub trait AstNode: Sized {
     fn can_cast(kind: SyntaxKind) -> bool;
@@ -412,11 +485,7 @@ ast_node!(Package, PACKAGE);
 impl Package {
     first_child_method!(name, Name);
     first_child_method!(body, NamespaceBody);
-    pub fn members(&self) -> impl Iterator<Item = NamespaceMember> + '_ {
-        self.body()
-            .into_iter()
-            .flat_map(|body| body.members().collect::<Vec<_>>())
-    }
+    body_members_method!();
 }
 
 ast_node!(LibraryPackage, LIBRARY_PACKAGE);
@@ -609,20 +678,7 @@ impl Dependency {
     /// Get prefix metadata references from preceding siblings.
     /// e.g., `#refinement dependency a to b;` -> returns [PrefixMetadata for "refinement"]
     pub fn prefix_metadata(&self) -> Vec<PrefixMetadata> {
-        let mut result = Vec::new();
-        let mut current = self.0.prev_sibling();
-        while let Some(sibling) = current {
-            if sibling.kind() == SyntaxKind::PREFIX_METADATA {
-                if let Some(pm) = PrefixMetadata::cast(sibling.clone()) {
-                    result.push(pm);
-                }
-                current = sibling.prev_sibling();
-            } else {
-                break;
-            }
-        }
-        result.reverse();
-        result
+        collect_prefix_metadata(&self.0)
     }
 }
 
@@ -802,31 +858,12 @@ impl Definition {
     first_child_method!(body, NamespaceBody);
     first_child_method!(constraint_body, ConstraintBody);
 
-    /// Get members from the definition's body.
-    /// This is a convenience method that calls `body()?.members()`.
-    pub fn members(&self) -> impl Iterator<Item = NamespaceMember> + '_ {
-        self.body()
-            .into_iter()
-            .flat_map(|body| body.members().collect::<Vec<_>>())
-    }
+    body_members_method!();
 
     /// Get prefix metadata references from preceding siblings.
     /// e.g., `#service port def ServiceDiscovery` -> returns [PrefixMetadata for "service"]
     pub fn prefix_metadata(&self) -> Vec<PrefixMetadata> {
-        let mut result = Vec::new();
-        let mut current = self.0.prev_sibling();
-        while let Some(sibling) = current {
-            if sibling.kind() == SyntaxKind::PREFIX_METADATA {
-                if let Some(pm) = PrefixMetadata::cast(sibling.clone()) {
-                    result.push(pm);
-                }
-                current = sibling.prev_sibling();
-            } else {
-                break;
-            }
-        }
-        result.reverse();
-        result
+        collect_prefix_metadata(&self.0)
     }
 }
 
@@ -1034,23 +1071,7 @@ impl Usage {
     /// 1. For most usages (part, attribute, etc.): preceding siblings in the namespace body
     /// 2. For end features: children of the USAGE node (after END_KW)
     pub fn prefix_metadata(&self) -> Vec<PrefixMetadata> {
-        let mut result = Vec::new();
-
-        // First check preceding siblings (most common case)
-        let mut current = self.0.prev_sibling();
-        while let Some(sibling) = current {
-            if sibling.kind() == SyntaxKind::PREFIX_METADATA {
-                if let Some(pm) = PrefixMetadata::cast(sibling.clone()) {
-                    result.push(pm);
-                }
-                current = sibling.prev_sibling();
-            } else {
-                // Stop when we hit a non-PREFIX_METADATA node
-                break;
-            }
-        }
-        // Reverse to get them in source order
-        result.reverse();
+        let mut result = collect_prefix_metadata(&self.0);
 
         // Also check children (for end features where PREFIX_METADATA is inside USAGE)
         for child in self.0.children() {
@@ -1075,25 +1096,8 @@ impl Usage {
 
     first_child_method!(typing, Typing);
 
-    /// Get the "of Type" qualified name for messages/items
-    /// e.g., `message sendCmd of SensedSpeed` -> returns "SensedSpeed" QualifiedName
-    /// This handles the `of` clause which is different from regular typing `:`.
-    pub fn of_type(&self) -> Option<QualifiedName> {
-        // Look for `of` keyword followed by a qualified name
-        let mut found_of = false;
-        for elem in self.0.children_with_tokens() {
-            if let Some(token) = elem.as_token() {
-                if token.kind() == SyntaxKind::OF_KW {
-                    found_of = true;
-                }
-            } else if let Some(node) = elem.as_node() {
-                if found_of && node.kind() == SyntaxKind::QUALIFIED_NAME {
-                    return QualifiedName::cast(node.clone());
-                }
-            }
-        }
-        None
-    }
+    child_after_keyword_method!(of_type, QualifiedName, OF_KW,
+        "Get the 'of Type' qualified name for messages/items (e.g., `message sendCmd of SensedSpeed`).");
 
     children_method!(specializations, Specialization);
     first_child_method!(body, NamespaceBody);
@@ -1510,26 +1514,8 @@ impl TransitionUsage {
 
     first_child_method!(accept_typing, Typing);
 
-    /// Get the 'via' target for the accept trigger
-    /// e.g., `ignitionCmdPort` in `accept ignitionCmd via ignitionCmdPort`
-    pub fn accept_via(&self) -> Option<QualifiedName> {
-        use crate::parser::SyntaxKind;
-        let mut seen_via = false;
-        for child in self.0.children_with_tokens() {
-            match child {
-                rowan::NodeOrToken::Token(t) if t.kind() == SyntaxKind::VIA_KW => {
-                    seen_via = true;
-                }
-                rowan::NodeOrToken::Node(n) if seen_via => {
-                    if let Some(qn) = QualifiedName::cast(n) {
-                        return Some(qn);
-                    }
-                }
-                _ => {}
-            }
-        }
-        None
-    }
+    child_after_keyword_method!(accept_via, QualifiedName, VIA_KW,
+        "Get the 'via' target for the accept trigger (e.g., `ignitionCmdPort` in `accept ignitionCmd via ignitionCmdPort`).");
 }
 
 // ============================================================================
@@ -1566,25 +1552,8 @@ impl AcceptActionUsage {
     first_child_method!(trigger, Expression);
     first_child_method!(accepted, QualifiedName);
 
-    /// Get the 'via' target port (the QualifiedName after VIA_KW)
-    /// e.g., `ignitionCmdPort` in `accept ignitionCmd via ignitionCmdPort`
-    pub fn via(&self) -> Option<QualifiedName> {
-        let mut seen_via = false;
-        for child in self.0.children_with_tokens() {
-            match child {
-                rowan::NodeOrToken::Token(t) if t.kind() == SyntaxKind::VIA_KW => {
-                    seen_via = true;
-                }
-                rowan::NodeOrToken::Node(n) if seen_via => {
-                    if let Some(qn) = QualifiedName::cast(n) {
-                        return Some(qn);
-                    }
-                }
-                _ => {}
-            }
-        }
-        None
-    }
+    child_after_keyword_method!(via, QualifiedName, VIA_KW,
+        "Get the 'via' target port (e.g., `ignitionCmdPort` in `accept ignitionCmd via ignitionCmdPort`).");
 }
 
 // ============================================================================
@@ -1608,13 +1577,7 @@ impl ForLoopActionUsage {
     first_child_method!(variable_name, Name);
     first_child_method!(typing, Typing);
     first_child_method!(body, NamespaceBody);
-
-    /// Get members from the loop body
-    pub fn members(&self) -> impl Iterator<Item = NamespaceMember> + '_ {
-        self.body()
-            .into_iter()
-            .flat_map(|b| b.members().collect::<Vec<_>>())
-    }
+    body_members_method!();
 }
 
 // ============================================================================
@@ -1653,13 +1616,7 @@ impl WhileLoopActionUsage {
     }
 
     first_child_method!(body, NamespaceBody);
-
-    /// Get members from the loop body
-    pub fn members(&self) -> impl Iterator<Item = NamespaceMember> + '_ {
-        self.body()
-            .into_iter()
-            .flat_map(|b| b.members().collect::<Vec<_>>())
-    }
+    body_members_method!();
 }
 
 // ============================================================================
@@ -1738,25 +1695,8 @@ impl RequirementVerification {
     first_child_method!(requirement, QualifiedName);
     first_child_method!(typing, Typing);
 
-    /// Get the 'by' target (the QualifiedName after BY_KW)
-    /// e.g., `vehicle_b` in `satisfy R by vehicle_b`
-    pub fn by_target(&self) -> Option<QualifiedName> {
-        let mut seen_by = false;
-        for child in self.0.children_with_tokens() {
-            match child {
-                rowan::NodeOrToken::Token(t) if t.kind() == SyntaxKind::BY_KW => {
-                    seen_by = true;
-                }
-                rowan::NodeOrToken::Node(n) if seen_by => {
-                    if let Some(qn) = QualifiedName::cast(n) {
-                        return Some(qn);
-                    }
-                }
-                _ => {}
-            }
-        }
-        None
-    }
+    child_after_keyword_method!(by_target, QualifiedName, BY_KW,
+        "Get the 'by' target (e.g., `vehicle_b` in `satisfy R by vehicle_b`).");
 }
 
 // ============================================================================
