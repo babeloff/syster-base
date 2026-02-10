@@ -55,6 +55,14 @@ fn has_token(node: &SyntaxNode, kind: SyntaxKind) -> bool {
         .any(|t| t.kind() == kind)
 }
 
+/// Find the first token that can be used as a name (identifier or contextual keyword).
+#[inline]
+fn find_name_token(node: &SyntaxNode) -> Option<SyntaxToken> {
+    node.children_with_tokens()
+        .filter_map(|e| e.into_token())
+        .find(|t| is_name_token(t.kind()))
+}
+
 /// Macro to generate boolean property methods that check for a specific token kind.
 ///
 /// Usage:
@@ -111,6 +119,50 @@ macro_rules! children_method {
         #[doc = concat!("Get all `", stringify!($type), "` children of this node.")]
         pub fn $name(&self) -> impl Iterator<Item = $type> + '_ {
             self.0.children().filter_map($type::cast)
+        }
+    };
+}
+
+/// Macro to generate a method that returns a Vec of children of a specific AST type.
+///
+/// Use this when the result needs to be collected (e.g., for iteration after borrowing ends).
+///
+/// Usage:
+/// ```ignore
+/// impl MyStruct {
+///     children_vec_method!(targets, QualifiedName);
+/// }
+/// ```
+macro_rules! children_vec_method {
+    ($name:ident, $type:ident) => {
+        #[doc = concat!("Get all `", stringify!($type), "` children of this node as a Vec.")]
+        pub fn $name(&self) -> Vec<$type> {
+            self.0.children().filter_map($type::cast).collect()
+        }
+    };
+}
+
+/// Macro to generate a method that returns an iterator over descendants of a specific AST type.
+///
+/// Unlike `children_method!`, this traverses the entire subtree, not just direct children.
+///
+/// Usage:
+/// ```ignore
+/// impl MyStruct {
+///     descendants_method!(expressions, Expression);
+/// }
+/// ```
+macro_rules! descendants_method {
+    ($name:ident, $type:ident) => {
+        #[doc = concat!("Get all `", stringify!($type), "` descendants of this node.")]
+        pub fn $name(&self) -> impl Iterator<Item = $type> + '_ {
+            self.0.descendants().filter_map($type::cast)
+        }
+    };
+    ($name:ident, $type:ident, $doc:literal) => {
+        #[doc = $doc]
+        pub fn $name(&self) -> impl Iterator<Item = $type> + '_ {
+            self.0.descendants().filter_map($type::cast)
         }
     };
 }
@@ -240,6 +292,23 @@ macro_rules! token_to_enum_method {
     };
 }
 
+/// Macro to generate `prefix_metadata()` method that collects metadata from preceding siblings.
+///
+/// Usage:
+/// ```ignore
+/// impl MyStruct {
+///     prefix_metadata_method!();
+/// }
+/// ```
+macro_rules! prefix_metadata_method {
+    () => {
+        /// Get prefix metadata references from preceding siblings.
+        pub fn prefix_metadata(&self) -> Vec<PrefixMetadata> {
+            collect_prefix_metadata(&self.0)
+        }
+    };
+}
+
 /// Helper to collect prefix metadata from preceding siblings.
 ///
 /// PREFIX_METADATA nodes precede definitions/usages in the source.
@@ -258,6 +327,34 @@ fn collect_prefix_metadata(node: &SyntaxNode) -> Vec<PrefixMetadata> {
     }
     result.reverse();
     result
+}
+
+/// Split children of a node at a keyword token.
+///
+/// Returns `(before, after)` where:
+/// - `before` contains all nodes of type `T` before the keyword
+/// - `after` contains all nodes of type `T` after the keyword
+fn split_at_keyword<T: AstNode>(node: &SyntaxNode, keyword: SyntaxKind) -> (Vec<T>, Vec<T>) {
+    let mut before = Vec::new();
+    let mut after = Vec::new();
+    let mut found_keyword = false;
+
+    for elem in node.children_with_tokens() {
+        if let Some(token) = elem.as_token() {
+            if token.kind() == keyword {
+                found_keyword = true;
+            }
+        } else if let Some(child) = elem.as_node() {
+            if let Some(item) = T::cast(child.clone()) {
+                if found_keyword {
+                    after.push(item);
+                } else {
+                    before.push(item);
+                }
+            }
+        }
+    }
+    (before, after)
 }
 
 /// Trait for AST nodes that wrap a SyntaxNode
@@ -428,9 +525,7 @@ macro_rules! ast_node {
 ast_node!(SourceFile, SOURCE_FILE);
 
 impl SourceFile {
-    pub fn members(&self) -> impl Iterator<Item = NamespaceMember> + '_ {
-        self.0.children().filter_map(NamespaceMember::cast)
-    }
+    children_method!(members, NamespaceMember);
 }
 
 // ============================================================================
@@ -692,11 +787,7 @@ ast_node!(FilterPackage, FILTER_PACKAGE);
 
 impl FilterPackage {
     first_child_method!(target, QualifiedName);
-
-    /// Get all filter targets (for multiple filters like [@A][@B])
-    pub fn targets(&self) -> Vec<QualifiedName> {
-        self.0.children().filter_map(QualifiedName::cast).collect()
-    }
+    children_vec_method!(targets, QualifiedName);
 }
 
 // ============================================================================
@@ -717,59 +808,24 @@ impl Alias {
 ast_node!(Dependency, DEPENDENCY);
 
 impl Dependency {
-    /// Get all qualified names (sources and target)
-    pub fn qualified_names(&self) -> impl Iterator<Item = QualifiedName> + '_ {
-        self.0.children().filter_map(QualifiedName::cast)
-    }
+    children_method!(qualified_names, QualifiedName);
 
     /// Get the source qualified name(s) - everything before "to"
     /// For `dependency a, b to c` returns [a, b]
     pub fn sources(&self) -> Vec<QualifiedName> {
-        let mut sources = Vec::new();
-        let mut found_to = false;
-
-        for elem in self.0.children_with_tokens() {
-            if let Some(token) = elem.as_token() {
-                if token.kind() == SyntaxKind::TO_KW {
-                    found_to = true;
-                }
-            } else if let Some(node) = elem.as_node() {
-                if !found_to {
-                    if let Some(qn) = QualifiedName::cast(node.clone()) {
-                        sources.push(qn);
-                    }
-                }
-            }
-        }
-        sources
+        split_at_keyword(&self.0, SyntaxKind::TO_KW).0
     }
 
     /// Get the target qualified name - after "to"
     /// For `dependency a to c` returns c
     pub fn target(&self) -> Option<QualifiedName> {
-        let mut found_to = false;
-
-        for elem in self.0.children_with_tokens() {
-            if let Some(token) = elem.as_token() {
-                if token.kind() == SyntaxKind::TO_KW {
-                    found_to = true;
-                }
-            } else if let Some(node) = elem.as_node() {
-                if found_to {
-                    if let Some(qn) = QualifiedName::cast(node.clone()) {
-                        return Some(qn);
-                    }
-                }
-            }
-        }
-        None
+        split_at_keyword::<QualifiedName>(&self.0, SyntaxKind::TO_KW)
+            .1
+            .into_iter()
+            .next()
     }
 
-    /// Get prefix metadata references from preceding siblings.
-    /// e.g., `#refinement dependency a to b;` -> returns [PrefixMetadata for "refinement"]
-    pub fn prefix_metadata(&self) -> Vec<PrefixMetadata> {
-        collect_prefix_metadata(&self.0)
-    }
+    prefix_metadata_method!();
 }
 
 // ============================================================================
@@ -942,12 +998,7 @@ impl Definition {
     first_child_method!(constraint_body, ConstraintBody);
 
     body_members_method!();
-
-    /// Get prefix metadata references from preceding siblings.
-    /// e.g., `#service port def ServiceDiscovery` -> returns [PrefixMetadata for "service"]
-    pub fn prefix_metadata(&self) -> Vec<PrefixMetadata> {
-        collect_prefix_metadata(&self.0)
-    }
+    prefix_metadata_method!();
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1163,13 +1214,7 @@ impl Usage {
     }
 
     first_child_method!(name, Name);
-
-    /// Get all Name nodes within this usage.
-    /// For `end self2 [1] feature sameThing: ...`, returns both `self2` and `sameThing`.
-    /// This helps handle cases where the identification and feature name differ.
-    pub fn names(&self) -> Vec<Name> {
-        self.0.children().filter_map(Name::cast).collect()
-    }
+    children_vec_method!(names, Name);
 
     first_child_method!(typing, Typing);
 
@@ -1309,12 +1354,7 @@ impl Name {
     first_child_method!(short_name, ShortName);
 
     pub fn text(&self) -> Option<String> {
-        // Get the identifier token (including contextual keywords used as names)
-        self.0
-            .children_with_tokens()
-            .filter_map(|e| e.into_token())
-            .find(|t| is_name_token(t.kind()))
-            .map(|t| t.text().to_string())
+        find_name_token(&self.0).map(|t| t.text().to_string())
     }
 }
 
@@ -1322,11 +1362,7 @@ ast_node!(ShortName, SHORT_NAME);
 
 impl ShortName {
     pub fn text(&self) -> Option<String> {
-        self.0
-            .children_with_tokens()
-            .filter_map(|e| e.into_token())
-            .find(|t| is_name_token(t.kind()))
-            .map(|t| strip_unrestricted_name(t.text()))
+        find_name_token(&self.0).map(|t| strip_unrestricted_name(t.text()))
     }
 }
 
@@ -1481,11 +1517,7 @@ impl TransitionUsage {
         None
     }
 
-    /// Get all specializations (source and target states)
-    pub fn specializations(&self) -> impl Iterator<Item = Specialization> + '_ {
-        self.0.children().filter_map(Specialization::cast)
-    }
-
+    children_method!(specializations, Specialization);
     source_target_pair!(source, target, specializations, Specialization);
 
     child_after_keyword_method!(accept_payload_name, Name, ACCEPT_KW,
@@ -1562,16 +1594,8 @@ impl ForLoopActionUsage {
 ast_node!(IfActionUsage, IF_ACTION_USAGE);
 
 impl IfActionUsage {
-    /// Get descendant expressions (condition and then/else targets)
-    pub fn expressions(&self) -> impl Iterator<Item = Expression> + '_ {
-        self.0.descendants().filter_map(Expression::cast)
-    }
-
-    /// Get qualified names (then/else action references)
-    pub fn qualified_names(&self) -> impl Iterator<Item = QualifiedName> + '_ {
-        self.0.children().filter_map(QualifiedName::cast)
-    }
-
+    descendants_method!(expressions, Expression, "Get descendant expressions (condition and then/else targets).");
+    children_method!(qualified_names, QualifiedName);
     first_child_method!(body, NamespaceBody);
 }
 
@@ -1582,11 +1606,7 @@ impl IfActionUsage {
 ast_node!(WhileLoopActionUsage, WHILE_LOOP_ACTION_USAGE);
 
 impl WhileLoopActionUsage {
-    /// Get descendant expressions (condition)
-    pub fn expressions(&self) -> impl Iterator<Item = Expression> + '_ {
-        self.0.descendants().filter_map(Expression::cast)
-    }
-
+    descendants_method!(expressions, Expression, "Get descendant expressions (condition).");
     first_child_method!(body, NamespaceBody);
     body_members_method!();
 }

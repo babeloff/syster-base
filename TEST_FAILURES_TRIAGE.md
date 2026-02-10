@@ -191,6 +191,55 @@ Resolution of names in nested/sibling scopes isn't working correctly. The visibi
 
 ---
 
+## SysML Library False Positives (NEW - 2026-02-09)
+
+These errors appear when running `cargo run --release ../base/sysml.library/`:
+
+### Bug 1: Succession References as Definitions (E0004)
+**Location:** `ControlPerformances.kerml:128:14`  
+**Error:** `duplicate definition: 'body' is already defined`  
+**Test:** `test_succession_reference_not_duplicate`
+
+**Root Cause:** When parsing `succession body then untilDecision;`, the succession source/target names are being extracted as symbol definitions instead of references.
+
+**Fix Location:**
+- `src/hir/symbols.rs` - In the succession extraction logic, the names in `SuccessionSource` / `SuccessionTarget` relationships should NOT create HirSymbols; they are references to existing symbols.
+
+**Affected stdlib files:**
+- `OccurrenceFunctions.kerml` (lines 126, 148)
+- `ControlPerformances.kerml` (line 128)
+- `Observation.kerml` (line 82)
+- `Transfers.kerml` (lines 166-167, 263, 265)
+
+---
+
+### Bug 2: Transitive Wildcard Import Resolution (E0001)
+**Location:** `StateSpaceRepresentation.sysml:19:9`  
+**Error:** `undefined reference: 'DurationValue'`  
+**Test:** `test_transitive_wildcard_import_resolution`
+
+**Root Cause:** When package `ISQ` has `public import ISQBase::*;` and another file imports `ISQ::DurationValue`, the resolver doesn't follow the transitive re-export chain to find `DurationValue` in `ISQBase`.
+
+**Fix Location:**
+- `src/hir/resolve.rs` - The visibility map builder needs to include re-exported symbols from wildcard imports when resolving specific member imports like `ISQ::DurationValue`.
+
+**Affected stdlib files:**
+- `StateSpaceRepresentation.sysml` (lines 19, 90)
+- `SpatialItems.sysml` (lines 114, 129, 147, 163)
+- `Links.kerml` (line 64)
+- `Metaobjects.kerml` (lines 21, 30, 44)
+
+---
+
+### Priority Order for Library False Positives
+
+| Priority | Bug | Impact | Complexity |
+|----------|-----|--------|------------|
+| 1 | Succession references (E0004) | 8 false positives | Medium - symbols.rs extraction |
+| 2 | Transitive imports (E0001) | 10 false positives | High - resolve.rs visibility maps |
+
+---
+
 ## Chain of Responsibility
 
 ```
