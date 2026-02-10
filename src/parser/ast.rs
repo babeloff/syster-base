@@ -703,7 +703,7 @@ impl NamespaceBody {
                     StateSubaction::cast(child)
                         .map(NamespaceMember::StateSubaction)
                         .into_iter()
-                        .collect::<Vec<_>>()
+                        .collect()
                 } else {
                     nested
                 }
@@ -1740,26 +1740,26 @@ impl AstNode for ConnectorEnd {
 }
 
 impl ConnectorEnd {
+    /// Find the CONNECTOR_END_REFERENCE child and check if it has a ::> or references keyword.
+    fn end_reference_info(&self) -> Option<(SyntaxNode, bool)> {
+        let ref_node = self
+            .0
+            .children()
+            .find(|n| n.kind() == SyntaxKind::CONNECTOR_END_REFERENCE)?;
+        let has_references = ref_node.children_with_tokens().any(|n| {
+            n.kind() == SyntaxKind::COLON_COLON_GT || n.kind() == SyntaxKind::REFERENCES_KW
+        });
+        Some((ref_node, has_references))
+    }
+
     /// Get the qualified name target reference.
     /// For patterns like `p ::> comp.lugNutPort`, returns `comp.lugNutPort`.
     /// For simple patterns like `comp.lugNutPort`, returns `comp.lugNutPort`.
     pub fn target(&self) -> Option<QualifiedName> {
-        // First check if we have a CONNECTOR_END_REFERENCE child
-        if let Some(ref_node) = self
-            .0
-            .children()
-            .find(|n| n.kind() == SyntaxKind::CONNECTOR_END_REFERENCE)
-        {
-            // Within CONNECTOR_END_REFERENCE, find qualified names
-            let qns: Vec<_> = ref_node
-                .children()
-                .filter_map(QualifiedName::cast)
-                .collect();
+        if let Some((ref_node, has_references)) = self.end_reference_info() {
+            let qns: Vec<_> = ref_node.children().filter_map(QualifiedName::cast).collect();
             // If there's a ::> or references keyword, return the second QN (the target)
             // Otherwise return the first/only QN
-            let has_references = ref_node.children_with_tokens().any(|n| {
-                n.kind() == SyntaxKind::COLON_COLON_GT || n.kind() == SyntaxKind::REFERENCES_KW
-            });
             if has_references && qns.len() > 1 {
                 return Some(qns[1].clone());
             } else {
@@ -1774,23 +1774,12 @@ impl ConnectorEnd {
     /// For patterns like `cause1 ::> a`, returns `cause1`.
     /// For simple patterns like `comp.lugNutPort`, returns None.
     pub fn endpoint_name(&self) -> Option<QualifiedName> {
-        // Check if we have a CONNECTOR_END_REFERENCE child
-        if let Some(ref_node) = self
-            .0
-            .children()
-            .find(|n| n.kind() == SyntaxKind::CONNECTOR_END_REFERENCE)
-        {
-            // Check if there's a ::> or references keyword
-            let has_references = ref_node.children_with_tokens().any(|n| {
-                n.kind() == SyntaxKind::COLON_COLON_GT || n.kind() == SyntaxKind::REFERENCES_KW
-            });
-
+        if let Some((ref_node, has_references)) = self.end_reference_info() {
             if has_references {
                 // Return the first QN (endpoint name before ::>)
                 return ref_node.children().filter_map(QualifiedName::cast).next();
             }
         }
-        // No endpoint name in simple patterns
         None
     }
 }
