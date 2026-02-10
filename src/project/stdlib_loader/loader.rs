@@ -6,8 +6,17 @@ use std::path::PathBuf;
 
 /// Loads the SysML standard library into an AnalysisHost.
 pub fn load_into_host(stdlib_path: &PathBuf, host: &mut AnalysisHost) -> Result<(), String> {
-    if !stdlib_path.exists() || !stdlib_path.is_dir() {
-        return Ok(());
+    if !stdlib_path.exists() {
+        return Err(format!(
+            "stdlib path does not exist: {}",
+            stdlib_path.display()
+        ));
+    }
+    if !stdlib_path.is_dir() {
+        return Err(format!(
+            "stdlib path is not a directory: {}",
+            stdlib_path.display()
+        ));
     }
 
     // Collect all file paths first
