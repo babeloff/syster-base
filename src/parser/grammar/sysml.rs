@@ -3588,6 +3588,28 @@ fn parse_usage_keyword<P: SysMLParser>(p: &mut P) {
     }
 
     if p.at_any(SYSML_USAGE_KEYWORDS) {
+        // Don't consume a keyword if it's actually being used as a name.
+        // Check if the next non-trivia token indicates this is a name (followed by : or :> or [ etc.)
+        // This handles cases like `in frame : Integer` where `frame` is a name, not a usage keyword.
+        if p.at_name_token() {
+            let lookahead = skip_trivia_lookahead(p, 1);
+            let next = p.peek_kind(lookahead);
+            if matches!(
+                next,
+                SyntaxKind::COLON
+                    | SyntaxKind::COLON_GT
+                    | SyntaxKind::COLON_GT_GT
+                    | SyntaxKind::L_BRACKET
+                    | SyntaxKind::SEMICOLON
+                    | SyntaxKind::L_BRACE
+                    | SyntaxKind::REDEFINES_KW
+                    | SyntaxKind::SUBSETS_KW
+                    | SyntaxKind::REFERENCES_KW
+            ) {
+                // This looks like a name followed by typing/specialization, not a usage keyword
+                return;
+            }
+        }
         p.bump();
     }
 }

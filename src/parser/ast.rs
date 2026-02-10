@@ -11,6 +11,9 @@ use super::{SyntaxNode, SyntaxToken};
 // ============================================================================
 
 /// Check if a token kind is an identifier or contextual keyword that can be used as a name.
+/// This includes contextual keywords that can appear as names in short name contexts like `<member>`.
+/// Many SysML keywords can also be used as regular names in appropriate contexts
+/// (e.g., `in frame : Integer` where `frame` is a feature name, not a keyword).
 #[inline]
 fn is_name_token(kind: SyntaxKind) -> bool {
     matches!(
@@ -20,6 +23,8 @@ fn is_name_token(kind: SyntaxKind) -> bool {
             | SyntaxKind::END_KW
             | SyntaxKind::DONE_KW
             | SyntaxKind::THIS_KW
+            | SyntaxKind::MEMBER_KW
+            | SyntaxKind::FRAME_KW // Used as name: `in frame : SpatialFrame`
     )
 }
 

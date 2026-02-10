@@ -1526,16 +1526,21 @@ fn parse_single_specialization<P: KerMLParser>(p: &mut P, keyword: SyntaxKind) {
 
     parse_qualified_name_and_skip(p);
 
-    // Handle comma-separated references: :>> A, B, C
+    p.finish_node();
+    p.skip_trivia();
+
+    // Handle comma-separated references: specializes A, B, C
+    // Each comma-separated item becomes a SEPARATE SPECIALIZATION node
+    // (without the keyword, since the keyword only applies to the first)
     while p.at(SyntaxKind::COMMA) {
+        p.start_node(SyntaxKind::SPECIALIZATION);
         bump_and_skip(p);
         // Each item in the list can have its own visibility
         parse_optional_visibility(p);
         parse_qualified_name_and_skip(p);
+        p.finish_node();
+        p.skip_trivia();
     }
-
-    p.finish_node();
-    p.skip_trivia();
 }
 
 /// Specializations = (':>' | 'specializes' | etc.) QualifiedName

@@ -5,6 +5,30 @@ All notable changes to syster-base will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.4-alpha] - 2026-02-10
+
+### Fixed
+
+- **Visibility Map Inheritance**: Fixed supertype inheritance to avoid self-references in redefining symbols
+  - Added `exclude_scope` parameter to `resolve_supertype_for_inheritance()` to skip the current scope when resolving redefining supertypes
+  - Fixes `monitoredFeature` resolution in `FeatureReferencingPerformances.kerml` and similar nested redefinition patterns
+  - Reduced stdlib semantic errors from 3 to 0
+
+- **Connection Implicit Supertypes**: Fixed implicit supertype for `connection def` from `Connections::Connection` to `Connections::BinaryConnection`
+  - Fixes `source`/`target` member resolution in `CausationConnections.sysml`
+
+### Changed
+
+- **Scope Resolution Performance**: Optimized `try_resolve_in_parent_scopes()` from O(d²) to O(n)
+  - Use visibility map lookups directly instead of creating Resolver objects per scope level
+  - Single backward scan through scope string with bracket tracking
+  - Zero heap allocations during scope walking
+
+- **Simplified Visibility Architecture**: Removed experimental `inherited` field from `ScopeVisibility`
+  - Use standard scope-chain pattern (like rust-analyzer) with caching instead of pre-flattening
+  - Better incremental update characteristics
+  - Reduced memory usage
+
 ## [0.3.3-alpha] - 2026-02-10
 
 ### Fixed

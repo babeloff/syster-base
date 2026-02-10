@@ -163,6 +163,35 @@ fn test_import_from_parent_scope_sibling() {
     );
 }
 
+#[test]
+fn test_root_level_import_visible_in_nested_package() {
+    // Root-level `private import P2::*` should make P2's members visible in nested packages
+    let source = r#"
+        package P1 {
+            part def A;
+        }
+        
+        package P2 {
+            private import P1::*;
+            part a : A;
+        }
+        
+        private import P2::*;
+        
+        package P3 {
+            part b subsets a;
+        }
+    "#;
+    let (mut host, _) = analysis_from_sysml(source);
+    let analysis = host.analysis();
+    let index = analysis.symbol_index();
+
+    // 'a' is imported at root level via `private import P2::*`
+    // It should be visible from within P3 (via parent scope lookup)
+    let sym = assert_resolves(index, "P3", "a");
+    assert_eq!(sym.qualified_name.as_ref(), "P2::a");
+}
+
 // =============================================================================
 // IMPORT SHADOWING
 // =============================================================================

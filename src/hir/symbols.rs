@@ -1061,7 +1061,9 @@ fn implicit_supertype_for_def_kind(kind: NormalizedDefKind) -> Option<&'static s
         NormalizedDefKind::Requirement => Some("Requirements::RequirementCheck"),
         NormalizedDefKind::Calculation => Some("Calculations::Calculation"),
         NormalizedDefKind::Port => Some("Ports::Port"),
-        NormalizedDefKind::Connection => Some("Connections::Connection"),
+        // Use BinaryConnection for connection def since most connections are binary
+        // and need access to source/target features from BinaryLinkObject
+        NormalizedDefKind::Connection => Some("Connections::BinaryConnection"),
         NormalizedDefKind::Interface => Some("Interfaces::Interface"),
         NormalizedDefKind::Allocation => Some("Allocations::Allocation"),
         NormalizedDefKind::UseCase => Some("UseCases::UseCase"),

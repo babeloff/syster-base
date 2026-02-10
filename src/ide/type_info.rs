@@ -177,7 +177,12 @@ fn resolve_member_in_type(
     symbol: &HirSymbol,
     member_name: &str,
 ) -> Option<HirSymbol> {
-    resolve_member_in_type_with_visited(index, symbol, member_name, &mut std::collections::HashSet::new())
+    resolve_member_in_type_with_visited(
+        index,
+        symbol,
+        member_name,
+        &mut std::collections::HashSet::new(),
+    )
 }
 
 /// Internal implementation with cycle detection.

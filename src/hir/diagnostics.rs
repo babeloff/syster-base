@@ -500,6 +500,14 @@ impl<'a> SemanticChecker<'a> {
         // Simple reference like "mass" - look in containing symbol's inheritance chain
         // The containing symbol should have supertypes that define this feature
 
+        // Handle short name references (e.g., 'member' with single quotes)
+        let (target, is_short_name) =
+            if target.starts_with('\'') && target.ends_with('\'') && target.len() > 2 {
+                (&target[1..target.len() - 1], true)
+            } else {
+                (target, false)
+            };
+
         // First, check if it's defined in the current symbol itself (local redefinition)
         let member_qname = format!("{}::{}", symbol.qualified_name, target);
         if self.index.lookup_qualified(&member_qname).is_some() {
@@ -516,6 +524,13 @@ impl<'a> SemanticChecker<'a> {
             return;
         }
 
+        // Also check inherited members in the parent scope (for cases like Association::relatedType
+        // redefining Relationship::relatedElement where relatedElement is not in Association directly)
+        if let Some(found) = self.index.find_member_in_scope(&scope, target) {
+            self.referenced.insert(found.qualified_name.clone());
+            return;
+        }
+
         // Look in the symbol's supertypes for the feature
         for supertype in &symbol.supertypes {
             // Resolve the supertype
@@ -523,6 +538,7 @@ impl<'a> SemanticChecker<'a> {
 
             if let ResolveResult::Found(super_sym) = resolver.resolve(supertype) {
                 // Look for the member in the supertype (recursive search)
+                // If it's a short name reference, also try looking up by short name
                 if let Some(found) = self
                     .index
                     .find_member_in_scope(&super_sym.qualified_name, target)
@@ -530,16 +546,63 @@ impl<'a> SemanticChecker<'a> {
                     self.referenced.insert(found.qualified_name.clone());
                     return;
                 }
+
+                // For short name references, also check by short name in supertype scope
+                if is_short_name {
+                    if let Some(found) = self
+                        .index
+                        .find_member_by_short_name_in_scope(&super_sym.qualified_name, target)
+                    {
+                        self.referenced.insert(found.qualified_name.clone());
+                        return;
+                    }
+                }
+            } else {
+                // The "supertype" couldn't be resolved as a type.
+                // This can happen when `:>> 'shortname'` is used - the short name gets added
+                // to supertypes but it's not actually a type, it's a feature reference.
+                // Try to find it as a short name in the parent's actual supertypes.
+                let parent_scope = Self::extract_scope(&symbol.qualified_name);
+                if let Some(parent_sym) = self.index.lookup_qualified(&parent_scope) {
+                    for parent_supertype in &parent_sym.supertypes {
+                        let parent_resolver =
+                            Resolver::new(self.index).with_scope(parent_scope.clone());
+                        if let ResolveResult::Found(parent_super_sym) =
+                            parent_resolver.resolve(parent_supertype)
+                        {
+                            // Look for a member with this short name in the parent's supertype
+                            if let Some(found) = self.index.find_member_by_short_name_in_scope(
+                                &parent_super_sym.qualified_name,
+                                supertype,
+                            ) {
+                                self.referenced.insert(found.qualified_name.clone());
+                                return;
+                            }
+                        }
+                    }
+                }
             }
         }
 
         // Still not found - might be in a supertype's supertype, or genuinely undefined
-        // Don't report error if it could be from stdlib or unloaded types
-        if !Self::is_builtin_type(target) && !symbol.supertypes.is_empty() {
-            // Only report if the symbol has supertypes (so we expected to find it)
-            // But actually, this is often a false positive since we haven't loaded stdlib
-            // For now, we'll be lenient and not report these
-            // self.collector.undefined_reference(symbol.file, symbol, target);
+        // Report error for unresolved feature references when the symbol has supertypes
+        // Skip reporting errors for:
+        // - Short name references (e.g., 'member') - parser doesn't always populate short_name correctly
+        // - Empty targets
+        // - Contextual keywords that are valid in specific contexts (that, accept, self, etc.)
+        let is_contextual_keyword = matches!(
+            target,
+            "that" | "self" | "accept" | "this" | "start" | "done" | "member"
+        );
+
+        if !target.is_empty()
+            && !Self::is_builtin_type(target)
+            && !symbol.supertypes.is_empty()
+            && !is_short_name
+            && !is_contextual_keyword
+        {
+            self.collector
+                .undefined_reference(symbol.file, symbol, target);
         }
     }
 

@@ -1330,6 +1330,109 @@ impl SymbolIndex {
             }
         }
 
+        // Not found directly - recursively search supertypes
+        if let Some(scope_sym) = self.lookup_qualified(type_scope) {
+            for supertype in &scope_sym.supertypes {
+                // Resolve the supertype name to a qualified name
+                // First try with the current scope
+                let resolver = Resolver::new(self).with_scope(type_scope.to_string());
+                let resolved = if let ResolveResult::Found(super_sym) = resolver.resolve(supertype)
+                {
+                    Some(super_sym)
+                } else {
+                    // If not found, try resolving from parent scopes
+                    // This handles cases like `redefines monitoredOccurrence` where the
+                    // redefined feature is in an ancestor's scope, not the current one
+                    self.try_resolve_in_parent_scopes(type_scope, supertype)
+                };
+
+                if let Some(super_sym) = resolved {
+                    if let Some(found) = self.find_member_in_scope_internal(
+                        &super_sym.qualified_name,
+                        member_name,
+                        visited,
+                    ) {
+                        return Some(found);
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
+    /// Try to resolve a name by walking up parent scopes.
+    /// This handles nested redefinitions where the redefined symbol is in an ancestor's scope.
+    /// Uses visibility maps directly instead of creating Resolver objects for each level.
+    ///
+    /// Optimized to scan the scope string once, working backwards to find each parent.
+    fn try_resolve_in_parent_scopes(&self, start_scope: &str, name: &str) -> Option<HirSymbol> {
+        let bytes = start_scope.as_bytes();
+        let mut end = bytes.len();
+
+        while end > 1 {
+            // Find the previous `::` separator, accounting for `<...>` brackets
+            let mut depth = 0i32;
+            let mut sep_pos = None;
+            let mut i = end;
+
+            while i > 1 {
+                i -= 1;
+                match bytes[i] {
+                    b'>' => depth += 1,
+                    b'<' => depth -= 1,
+                    b':' if depth == 0 && i > 0 && bytes[i - 1] == b':' => {
+                        sep_pos = Some(i - 1);
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+
+            let parent_end = sep_pos?;
+            let parent = &start_scope[..parent_end];
+
+            // Check visibility map for this parent scope
+            if let Some(vis) = self.visibility_map.get(parent) {
+                if let Some(qname) = vis.lookup(name) {
+                    if let Some(sym) = self.lookup_qualified(qname) {
+                        return Some(sym.clone());
+                    }
+                }
+            }
+
+            end = parent_end;
+        }
+        None
+    }
+
+    /// Find a member within a type scope by short name.
+    /// This is used for short name references like `:>> 'member'`.
+    pub fn find_member_by_short_name_in_scope(
+        &self,
+        type_scope: &str,
+        short_name: &str,
+    ) -> Option<HirSymbol> {
+        // Check visibility map for the type scope and look for symbols with matching short name
+        if let Some(vis) = self.visibility_for_scope(type_scope) {
+            // Check direct definitions
+            for (_name, qname) in vis.direct_defs() {
+                if let Some(sym) = self.lookup_qualified(qname) {
+                    if sym.short_name.as_ref().map(|s| s.as_ref()) == Some(short_name) {
+                        return Some(sym.clone());
+                    }
+                }
+            }
+            // Check imports
+            for (_name, qname) in vis.imports() {
+                if let Some(sym) = self.lookup_qualified(qname) {
+                    if sym.short_name.as_ref().map(|s| s.as_ref()) == Some(short_name) {
+                        return Some(sym.clone());
+                    }
+                }
+            }
+        }
+
         None
     }
 
@@ -1867,8 +1970,9 @@ impl SymbolIndex {
 
             for (scope, parent_scope, supertype) in &inheritance_edges {
                 // Try to resolve the supertype from the parent scope's context
+                // Exclude the current scope to avoid self-references when resolving redefining supertypes
                 if let Some(resolved) =
-                    self.resolve_supertype_for_inheritance(supertype, parent_scope)
+                    self.resolve_supertype_for_inheritance(supertype, parent_scope, Some(scope))
                 {
                     // Get members from the resolved supertype's visibility
                     let parent_members: Vec<(Arc<str>, Arc<str>)> = self
@@ -1898,14 +2002,25 @@ impl SymbolIndex {
 
     /// Resolve a supertype reference for inheritance propagation.
     /// Uses visibility maps (including imports) for resolution.
+    /// `exclude_scope` is used to avoid self-references when resolving redefining supertypes.
     fn resolve_supertype_for_inheritance(
         &self,
         name: &str,
         starting_scope: &str,
+        exclude_scope: Option<&Arc<str>>,
     ) -> Option<Arc<str>> {
         // Try qualified lookup first
         if let Some(sym) = self.lookup_qualified(name) {
-            return Some(sym.qualified_name.clone());
+            // If this matches the excluded scope, skip it
+            if let Some(excluded) = exclude_scope {
+                if &sym.qualified_name == excluded {
+                    // Don't return - fall through to scope-walking
+                } else {
+                    return Some(sym.qualified_name.clone());
+                }
+            } else {
+                return Some(sym.qualified_name.clone());
+            }
         }
 
         // Walk up scopes looking for the name
@@ -1919,6 +2034,17 @@ impl SymbolIndex {
             };
 
             if let Some(sym) = self.lookup_qualified(&qname) {
+                // Skip if this is the excluded scope
+                if let Some(excluded) = exclude_scope {
+                    if &sym.qualified_name == excluded {
+                        // Don't return, continue walking up
+                        if current_scope.is_empty() {
+                            break;
+                        }
+                        current_scope = Self::parent_scope(current_scope).unwrap_or("");
+                        continue;
+                    }
+                }
                 return Some(sym.qualified_name.clone());
             }
 
@@ -1926,10 +2052,31 @@ impl SymbolIndex {
             if let Some(vis) = self.visibility_map.get(current_scope) {
                 // Check direct definitions first
                 if let Some(resolved) = vis.direct_defs.get(name) {
+                    // Skip if this points to the excluded scope
+                    if let Some(excluded) = exclude_scope {
+                        if resolved == excluded {
+                            // Don't return, continue walking up
+                            if current_scope.is_empty() {
+                                break;
+                            }
+                            current_scope = Self::parent_scope(current_scope).unwrap_or("");
+                            continue;
+                        }
+                    }
                     return Some(resolved.clone());
                 }
                 // Also check imports (important for types imported via `import X::*`)
                 if let Some(resolved) = vis.imports.get(name) {
+                    // Skip if this points to the excluded scope
+                    if let Some(excluded) = exclude_scope {
+                        if resolved == excluded {
+                            if current_scope.is_empty() {
+                                break;
+                            }
+                            current_scope = Self::parent_scope(current_scope).unwrap_or("");
+                            continue;
+                        }
+                    }
                     return Some(resolved.clone());
                 }
             }
@@ -2304,6 +2451,10 @@ impl SymbolIndex {
                 return Some(""); // Root level import
             }
             return Some(&qualified_name[..import_pos]);
+        }
+        // Handle root-level imports: "import:Path" (starts with import:, no :: before it)
+        if qualified_name.starts_with("import:") {
+            return Some(""); // Root level import
         }
 
         // Handle anonymous scopes like `<perform:...>` or `<anon#...>`
