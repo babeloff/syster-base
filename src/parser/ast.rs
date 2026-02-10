@@ -627,12 +627,7 @@ ast_node!(Import, IMPORT);
 
 impl Import {
     has_token_method!(is_all, ALL_KW, "import all P::*");
-
-    /// Get the qualified name being imported
-    pub fn target(&self) -> Option<QualifiedName> {
-        self.0.children().find_map(QualifiedName::cast)
-    }
-
+    first_child_method!(target, QualifiedName);
     has_token_method!(is_wildcard, STAR, "import P::*");
 
     /// Check if this is a recursive import (::**)
@@ -872,23 +867,22 @@ impl MetadataUsage {
 ast_node!(PrefixMetadata, PREFIX_METADATA);
 
 impl PrefixMetadata {
-    /// Get the metadata type name (the identifier after #)
-    /// e.g., `mop` in `#mop attribute mass : Real;`
-    pub fn name(&self) -> Option<String> {
+    /// Find the IDENT token (the name after #)
+    fn ident_token(&self) -> Option<SyntaxToken> {
         self.0
             .children_with_tokens()
             .filter_map(|e| e.into_token())
             .find(|t| t.kind() == SyntaxKind::IDENT)
-            .map(|t| t.text().to_string())
+    }
+
+    /// Get the metadata type name (e.g., `mop` in `#mop attribute mass : Real;`)
+    pub fn name(&self) -> Option<String> {
+        self.ident_token().map(|t| t.text().to_string())
     }
 
     /// Get the text range of the identifier (for hover/goto)
     pub fn name_range(&self) -> Option<rowan::TextRange> {
-        self.0
-            .children_with_tokens()
-            .filter_map(|e| e.into_token())
-            .find(|t| t.kind() == SyntaxKind::IDENT)
-            .map(|t| t.text_range())
+        self.ident_token().map(|t| t.text_range())
     }
 }
 
@@ -1529,11 +1523,7 @@ impl PerformActionUsage {
 ast_node!(AcceptActionUsage, ACCEPT_ACTION_USAGE);
 
 impl AcceptActionUsage {
-    /// Get the accept action name (if named, e.g., the payload name)
-    pub fn name(&self) -> Option<Name> {
-        self.0.children().find_map(Name::cast)
-    }
-
+    first_child_method!(name, Name);
     first_child_method!(trigger, Expression);
     first_child_method!(accepted, QualifiedName);
 
@@ -1582,10 +1572,7 @@ impl IfActionUsage {
         self.0.children().filter_map(QualifiedName::cast)
     }
 
-    /// Get the body of the if action (if it has one)
-    pub fn body(&self) -> Option<NamespaceBody> {
-        self.0.children().find_map(NamespaceBody::cast)
-    }
+    first_child_method!(body, NamespaceBody);
 }
 
 // ============================================================================
