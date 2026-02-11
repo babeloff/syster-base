@@ -462,13 +462,13 @@ impl<'a> SemanticChecker<'a> {
                                 self.collector.add(
                                     Diagnostic::error(
                                         symbol.file,
-                                        part.start_line.saturating_sub(1),
-                                        part.start_col.saturating_sub(1),
+                                        part.start_line,
+                                        part.start_col,
                                         format!("Undefined member '{}' in feature chain", name),
                                     )
                                     .with_span(
-                                        part.end_line.saturating_sub(1),
-                                        part.end_col.saturating_sub(1),
+                                        part.end_line,
+                                        part.end_col,
                                     ),
                                 );
                             }

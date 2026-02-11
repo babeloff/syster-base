@@ -170,6 +170,69 @@ fn test_diagnostic_has_position_info() {
     }
 }
 
+#[test]
+fn test_chain_member_diagnostic_span_points_to_undefined_member() {
+    // Test that when a chain member is undefined, the diagnostic span
+    // points to the exact location of that member, not the whole chain.
+    //
+    // Source layout (0-indexed lines):
+    // Line 0: empty
+    // Line 1: "        package Test {"
+    // Line 2: "            part def Hub { attribute appliedTorque; }"
+    // Line 3: "            part hub : Hub;"
+    // Line 4: "            attribute t = hub.apliedTorque;"  // typo: apliedTorque
+    // Line 5: "        }"
+    let source = r#"
+        package Test {
+            part def Hub { attribute appliedTorque; }
+            part hub : Hub;
+            attribute t = hub.apliedTorque;
+        }
+    "#;
+
+    let diagnostics = get_errors_for_source(source);
+
+    // Should have exactly one error for the undefined chain member
+    assert_eq!(
+        diagnostics.len(),
+        1,
+        "Should have exactly one error for undefined chain member. Got: {:?}",
+        diagnostics.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+
+    let diag = &diagnostics[0];
+
+    // The diagnostic should point to "apliedTorque" (the typo), not "hub"
+    assert!(
+        diag.message.contains("apliedTorque"),
+        "Diagnostic should mention the undefined member 'apliedTorque'. Got: {}",
+        diag.message
+    );
+
+    // Line 4 (0-indexed) is where "hub.apliedTorque" appears
+    assert_eq!(
+        diag.start_line, 4,
+        "Diagnostic should be on line 4 (0-indexed). Got line {}",
+        diag.start_line
+    );
+
+    // "apliedTorque" starts at column 30 (after "            attribute t = hub.")
+    // The exact column depends on how the source is formatted
+    assert!(
+        diag.start_col >= 26 && diag.start_col <= 35,
+        "Diagnostic column should be around where 'apliedTorque' starts (26-35). Got col {}",
+        diag.start_col
+    );
+
+    // End column should cover the whole identifier
+    assert!(
+        diag.end_col > diag.start_col,
+        "Diagnostic should have a span (end_col > start_col). Got start={}, end={}",
+        diag.start_col,
+        diag.end_col
+    );
+}
+
 // =============================================================================
 // SEVERITY LEVEL TESTS
 // =============================================================================
