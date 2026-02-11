@@ -1,0 +1,30 @@
+[workspace]
+authors = ["Fredrick Eisele <fred.eisele@vanderbilt.edu>"]
+channels = ["https://prefix.dev/meso-forge", "conda-forge"]
+name = "syster-base"
+platforms = ["linux-64"]
+version = "0.1.0"
+
+[tasks.check]
+cmd = "cargo clippy --all-targets"
+description = "Run clippy lints on all targets"
+
+[tasks.build]
+cmd = "cargo build"
+description = "Compile the project"
+
+[tasks.test]
+cmd = "cargo test"
+description = "Run all tests"
+
+[tasks.fmt]
+cmd = "cargo fmt"
+description = "Format source code"
+
+[tasks.fmt-check]
+cmd = "cargo fmt -- --check"
+description = "Check source code formatting"
+
+[dependencies]
+rust = ">=1.85"
+gh = "*"
