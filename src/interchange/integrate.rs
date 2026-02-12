@@ -21,7 +21,9 @@
 //! let xmi_bytes = Xmi.write(&model)?;
 //! ```
 
-use super::model::{Element, ElementId, ElementKind, Model, Relationship, RelationshipKind};
+use super::model::{
+    Element, ElementId, ElementKind, Model, PropertyValue, Relationship, RelationshipKind,
+};
 use crate::base::FileId;
 use crate::hir::{
     HirRelationship, HirSymbol, RelationshipKind as HirRelKind, RootDatabase, SymbolKind,
