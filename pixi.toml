@@ -29,6 +29,10 @@ description = "Check source code formatting"
 cmd = "cargo test --features interchange"
 description = "Run all tests including interchange format support"
 
+[tasks.test-proptest]
+cmd = "cargo test --features proptest"
+description = "Run all property tests"
+
 [tasks.sync-version]
 cmd = "sd 'version = \".*\"  # AUTO_EDIT_VERSION.*' \"version = \\\"$(cat Cargo.toml | dasel -i toml package.version | tr -d \"'\")\\\"  # AUTO_EDIT_VERSION is edited by the sync-version task\" pixi.toml"
 description = "Sync pixi.toml version from Cargo.toml"
